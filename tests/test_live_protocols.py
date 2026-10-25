@@ -13,11 +13,12 @@ import pytest
 from campus_runner.transport import HostKeyRequired, SSH
 
 
-def test_actual_mcp_process_calls_running_http_service(tmp_path):
+def test_actual_mcp_process_calls_running_http_service(tmp_path,monkeypatch):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
-    args = [sys.executable, "-m", "campus_runner.cli", "--home", str(tmp_path), "--port", str(port)]
+    state_home = tmp_path / '状态 with spaces'
+    args = [sys.executable, "-m", "campus_runner.cli", "--home", str(state_home), "--port", str(port)]
     env = {**os.environ, "PYTHONUTF8": "1"}
     server = subprocess.Popen(args + ["serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     try:
@@ -43,6 +44,19 @@ def test_actual_mcp_process_calls_running_http_service(tmp_path):
         assert json.loads(responses[2]["result"]["content"][0]["text"]) == []
         schema = next(t["inputSchema"] for t in responses[1]["result"]["tools"] if t["name"] == "create_batch")
         assert "Job" in schema["$defs"]
+        # A different Agent cwd and inherited proxy must not redirect localhost traffic.
+        from campus_runner.client_config import check_connection
+        with monkeypatch.context() as patch:
+            patch.setenv('http_proxy','http://127.0.0.1:1')
+            patch.setenv('https_proxy','http://127.0.0.1:1')
+            patch.setenv('no_proxy','')
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                checks=list(pool.map(lambda _: check_connection(state_home,port,cwd=tmp_path),range(2)))
+        for checked in checks:
+            assert checked['status']=='ok'
+            assert checked['instance_count']==0
+            assert len(checked['tools'])==10
     finally:
         server.terminate()
         server.wait(timeout=10)

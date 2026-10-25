@@ -7,7 +7,8 @@ from pathlib import Path
 from .models import digest
 
 EXCLUDES = {".git", ".venv", "venv", "env", "envs", "node_modules", "__pycache__", ".pytest_cache", ".cache", "build", "dist", ".campus-runner", "data", "datasets", "outputs", "runs", "checkpoints", ".ssh", ".aws", ".codex"}
-SECRET_PATTERNS = [".env*", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "*credentials*", "*.pth", "*.pt", "*.ckpt", "*.safetensors"]
+EXCLUDES.update({".claude", ".cursor", ".workbuddy", ".dsh"})
+SECRET_PATTERNS = [".env*", "*.pem", "*.key", "id_rsa*", "id_ed25519*", "*credentials*", "*.pth", "*.pt", "*.ckpt", "*.safetensors", ".mcp.json", "mcp.json", ".claude.json", "cordis.patch.yml"]
 
 
 def prepare(store, project_path, excludes=None):

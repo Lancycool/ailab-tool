@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "campus-runner": {
+      "command": "C:/path/to/ailab-tool/.venv/Scripts/python.exe",
+      "args": [
+        "-X",
+        "utf8",
+        "-m",
+        "campus_runner.cli",
+        "--home",
+        "C:/path/to/ailab-tool/.campus-runner",
+        "--port",
+        "8765",
+        "mcp"
+      ],
+      "env": {
+        "PYTHONUTF8": "1",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

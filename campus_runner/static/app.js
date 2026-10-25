@@ -78,7 +78,7 @@ function instanceGpuLabel(instanceId, indices) {
 }
 function renderBatches(){
   const target=$('batch-list'); target.replaceChildren();
-  if(!state.batches.length) empty(target,'Codex 创建的实验草案会出现在这里。你核对后批准，程序会自动提交。');
+  if(!state.batches.length) empty(target,'Agent 创建的实验草案会出现在这里。你核对后批准，程序会自动提交。');
   state.batches.forEach(b=>{
     const card=el('article',undefined,'batch'),head=el('div',undefined,'section-heading');
     const op=(state.operations||[]).find(o=>o.id===b.submission_operation_id);
@@ -91,7 +91,7 @@ function renderBatches(){
     const actions=el('div',undefined,'actions');
     if(!b.approved_digest) actions.append(button('批准并提交',async()=>{
       await api('panel/approve',{batch_id:b.id,digest:b.digest});
-      notice('清单已批准，程序正在后台上传并提交。你无需返回 Codex 再次确认，可以在任务详情查看进度。');
+      notice('清单已批准，程序正在后台上传并提交。你无需返回 Agent 再次确认，可以在任务详情查看进度。');
       await refresh();
     },''));
     if(b.approved_digest&&!submitting) actions.append(button(b.all_accepted?'核对并恢复队列':'重试提交已批准清单',()=>operation('submit_batch',{key:b.id})));

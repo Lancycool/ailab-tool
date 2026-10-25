@@ -4,11 +4,11 @@
 
 这些重复操作让本地 AI 与远程训练之间多了一道障碍。Campus Runner 把代码上传、任务执行和结果回传接在一起，让 AI 可以管理学校集群上的训练任务。你在本地提出实验目标并确认清单，程序负责把任务送到服务器，再把结果交回本地分析。
 
-**Campus Runner 让本地 Codex 通过 SSH 管理校园服务器上的训练。**
+**Campus Runner 让本地 Agent 通过 SSH 管理校园服务器上的训练。**
 
-你在本地写代码，让 Codex 准备实验，再在浏览器面板点击一次“批准并提交”。程序会上传代码、在服务器运行训练，并把日志和指标同步回来。你不需要为每次实验手动打开 FinalShell、上传文件，再逐条输入训练命令。
+你在本地写代码，让 Agent 准备实验，再在浏览器面板点击一次“批准并提交”。程序会上传代码、在服务器运行训练，并把日志和指标同步回来。你不需要为每次实验手动打开 FinalShell、上传文件，再逐条输入训练命令。
 
-本项目适合已经拥有学校 GPU 实例，希望让 Codex 管理训练流程的用户。当前版本面向 **Windows 本地电脑 + Linux 服务器 + Conda 环境**。学校平台自动导入目前只适配陕西师范大学的 `ailab.snnu.edu.cn`；其他可通过 SSH 访问的服务器可以手动配置，但需要自行验证兼容性。
+本项目适合已经拥有学校 GPU 实例，希望让 Agent 管理训练流程的用户。当前版本面向 **Windows 本地电脑 + Linux 服务器 + Conda 环境**。学校平台自动导入目前只适配陕西师范大学的 `ailab.snnu.edu.cn`；其他可通过 SSH 访问的服务器可以手动配置，但需要自行验证兼容性。
 
 ## 这个工具能做什么？
 
@@ -16,20 +16,20 @@
 |---|---|
 | 连接学校服务器 | 程序支持手动填写 SSH 信息，也支持你登录学校平台后导入实例。 |
 | 上传本地代码 | 程序生成固定代码快照，记录文件摘要，并上传远程缺少的内容。 |
-| 安排多组实验 | Codex 准备实例、GPU、命令、环境和时间限制，你在面板批准后执行。 |
+| 安排多组实验 | Agent 准备实例、GPU、命令、环境和时间限制，你在面板批准后执行。 |
 | 关闭本地电脑后继续训练 | 服务器继续执行已完整提交的队列，本地重新上线后恢复同步。 |
 | 跟踪进度和失败原因 | 面板显示任务状态、日志、指标曲线和退出原因。 |
-| 汇总实验 | Codex 读取结构化指标，程序生成 Markdown 报告和 CSV 对比表。 |
+| 汇总实验 | Agent 读取结构化指标，程序生成 Markdown 报告和 CSV 对比表。 |
 | 获取模型权重 | 你选择需要的文件后，程序下载并校验完整性。 |
 
 你仍需在学校平台申请、续期实例，并准备服务器上的数据集和训练环境。第一版不支持自动申请实例、自动迁移、自动断点续训，也不提供 FinalShell 式的完整终端和文件管理器。服务器不会自行运行 AI 修改代码。
 
 ```text
-本地代码 → Codex 准备实验 → 你在面板批准 → SSH 上传并提交
+本地代码 → Agent 准备实验 → 你在面板批准 → SSH 上传并提交
                                               ↓
                                   服务器队列 → GPU 训练
                                               ↓
-                         本地面板 / Codex ← 日志、指标、结果
+                         本地面板 / Agent ← 日志、指标、结果
 ```
 
 ## 开始前，你需要准备什么？
@@ -37,7 +37,7 @@
 | 位置 | 需要具备的条件 |
 |---|---|
 | 本地电脑 | Windows、Git、Python 3.11 或以上版本。 |
-| Codex | 本地 Codex；注册脚本还需要终端可以运行 `codex` 命令。 |
+| AI Agent | 支持本地 MCP STDIO 的客户端，例如 Claude Code、Cursor、WorkBuddy、DeepSeek Harness 或 Codex。 |
 | 网络 | 本地电脑能访问服务器 SSH 地址；学校内网实例需要在可访问校园内网的环境使用。 |
 | 学校平台导入 | 本地已安装 Microsoft Edge；程序通过 Playwright 打开独立登录窗口。 |
 | 远程服务器 | Linux、SSH/SFTP、Python 3.8 或以上版本、Conda，以及可用的 GPU 和 `nvidia-smi`。 |
@@ -77,21 +77,40 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 
 你直接打开地址时可能看到“请使用程序打开面板”的提示。此时请使用上述命令，不需要手动查找或复制令牌。
 
-### 3. 让 Codex 连接本地服务
+### 3. 让你的 Agent 连接本地服务
 
-你在项目目录执行：
+Campus Runner 使用通用 **MCP STDIO**，可以由不同 Agent 调用。你在项目目录生成客户端配置：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\configure-codex.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 ```
 
-脚本把 `campus-runner` MCP 服务注册到当前用户的 Codex 配置中。MCP 是 Codex 调用本工具的接口。你重新加载 Codex 会话后，可以让它验证连接：
+程序会把配置导出到 `.campus-runner/client-configs/`。生成文件已经包含本机 Python、状态目录和端口的实际路径。程序不会覆盖客户端已有设置。
 
-> 请调用 Campus Runner 的 list_instances，确认你能访问本地训练管理服务。
+| 你使用的客户端 | 生成文件 | 接入方式 |
+|---|---|---|
+| Claude Code | `claude-code.mcp.json` | 你通过 `--mcp-config` 加载，或合并到项目 `.mcp.json`。 |
+| Cursor | `cursor.mcp.json` | 你合并到项目或个人的 `.cursor/mcp.json`。 |
+| WorkBuddy | `workbuddy.mcp.json` | 你通过客户端的自定义本地 MCP 配置入口导入，选择 STDIO。 |
+| DeepSeek Harness | `deepseek-harness.patch.yml` | 你通过 `--patch` 加载，或合并到所用 profile 的补丁文件。 |
+| Codex | `codex.toml` | 你合并 TOML 配置，也可以继续运行原来的 `scripts/configure-codex.ps1`。 |
+| 其他本地 MCP Agent | `generic.mcp.json` | 你按客户端格式填写其中的启动程序、参数和环境变量。 |
 
-如果终端找不到 `codex`，你可以参考 [MCP 配置示例](configs/codex.toml) 手动配置。示例中的绝对路径必须改成你的项目路径。你移动项目目录后，也需要重新注册。
+你可以用 `-Client cursor` 等参数只生成某个客户端的配置。各客户端的操作步骤、官方资料和配置差异见 [MCP 客户端接入](docs/MCP_CLIENTS.md)。仓库中的 [配置示例](configs/generic.mcp.json) 使用占位路径；实际使用时优先让脚本生成本机配置。
 
-仓库还提供了 [Codex 操作说明](skills/campus-training/SKILL.md)。你可以让 Codex 在开展实验前读取它；如果你需要长期复用，可以把 `skills/campus-training` 文件夹复制到自己的 Codex skills 目录。
+你先启动本地管理服务，再在客户端加载配置。你可以在项目目录运行协议自检：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m campus_runner.cli --home .\.campus-runner --port 8765 mcp-check
+```
+
+成功时，程序返回 `status: ok`、10 个工具名称和实例数量。你随后可以让 Agent 验证连接：
+
+> 请调用 Campus Runner 的 list_instances，确认你能访问本地训练管理服务。请先读取 docs/AGENT_GUIDE.md。
+
+多个 Agent 可以共用一个本地管理服务、同一个 `--home` 与 `--port`。每个客户端会启动自己的 STDIO 适配进程，实例和任务记录由管理服务统一保存。你切换客户端后先查询已有任务，避免为同一实验重复建批。项目移动后，你需要重新生成配置。
+
+服务会通过 MCP 初始化响应提供通用操作指引。你也可以让 Agent 读取 [通用操作说明](docs/AGENT_GUIDE.md)；支持 Skill 的客户端还可以按其方式加载 [操作技能](skills/campus-training/SKILL.md)。本项目的通用性指客户端接入，当前本地运行环境仍以 Windows 为目标。
 
 ### 4. 添加服务器实例
 
@@ -114,7 +133,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-codex.ps1
 
 | 字段 | 示例与填写方式 |
 |---|---|
-| 实例编号 | `gpu-a`。你和 Codex 会用这个编号指定服务器。 |
+| 实例编号 | `gpu-a`。你和 Agent 会用这个编号指定服务器。 |
 | 显示名称 | `我的训练实例`。名称用于面板展示。 |
 | 主机与 SSH 端口 | 你填写平台分配的外部地址，例如 `192.0.2.10`、`24060`；不要照抄示例地址。 |
 | 用户名、密码 | 你填写能够登录该实例的 SSH 账号和密码。 |
@@ -132,22 +151,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-codex.ps1
 
 你可以先用仓库中的 [短时 GPU 示例](examples/acceptance/train.py) 检查完整流程。示例使用合成数据，不需要下载数据集；远程 Conda 环境必须已经安装支持 CUDA 的 PyTorch。
 
-你可以把下面这段话发给 Codex，并替换实例编号、环境名和 GPU 编号：
+你可以把下面这段话发给 Agent，并替换实例编号、环境名和 GPU 编号：
 
-> 请先读取 skills/campus-training/SKILL.md。请用 Campus Runner，为当前仓库的 examples/acceptance 目录生成快照。请在实例 gpu-a 的 GPU 0 上，使用 radar 环境运行 python train.py --steps 12 --seed 7。最长运行时间设为 180 秒。示例使用合成数据，不传数据集路径；数据集标识设为 demo-synthetic，评价方式设为 smoke-v1。主要指标是 train split 的 loss，数值越小越好。请先创建实验清单，告诉我面板批准入口。你不需要等待我回聊天确认；我点击“批准并提交”后，本地服务会自动提交。请不要安装依赖。
+> 请先读取 docs/AGENT_GUIDE.md。请用 Campus Runner，为当前仓库的 examples/acceptance 目录生成快照。请在实例 gpu-a 的 GPU 0 上，使用 radar 环境运行 python train.py --steps 12 --seed 7。最长运行时间设为 180 秒。示例使用合成数据，不传数据集路径；数据集标识设为 demo-synthetic，评价方式设为 smoke-v1。主要指标是 train split 的 loss，数值越小越好。请先创建实验清单，告诉我面板批准入口。你不需要等待我回聊天确认；我点击“批准并提交”后，本地服务会自动提交。请不要安装依赖。
 
 你接着完成下面的流程：
 
 1. 你在“实验批准”页面核对实例、GPU、环境、命令和代码快照，并点击“批准并提交”。
-2. 程序在后台自动上传并提交。你不需要返回 Codex 再说“已批准，请继续”。面板会显示提交进度；失败时，你可以重试同一清单。
+2. 程序在后台自动上传并提交。你不需要返回 Agent 再说“已批准，请继续”。面板会显示提交进度；失败时，你可以重试同一清单。
 3. 你在“任务详情”查看日志和状态。只有面板显示“整批已提交，可离线”后，本地电脑才可以离线。
-4. 你在“结果对比”点击“汇总结果”，或让 Codex读取指标并生成总结。
+4. 你在“结果对比”点击“汇总结果”，或让 Agent读取指标并生成总结。
 
 示例正常完成时，任务状态应为“成功”，退出码应为 0。每个任务会产生 12 条指标、`summary.json` 和 `model.pt`。日志和小型结果会自动回传，模型权重由你按需下载。
 
 ## 如何接入自己的训练项目？
 
-你需要告诉 Codex 本地项目目录、服务器数据集路径、Conda 环境、训练命令、GPU、时间上限，以及主要评价指标。你可以这样描述：
+你需要告诉 Agent 本地项目目录、服务器数据集路径、Conda 环境、训练命令、GPU、时间上限，以及主要评价指标。你可以这样描述：
 
 > 请把 E:\Projects\my-training 生成代码快照，在 gpu-a 的 GPU 0 上使用 radar 环境训练。数据集已经位于服务器 /data/radar。请使用 python train.py --epochs 20，最长运行 4 小时，以 validation split 的 loss 作为主要指标，越小越好。请先检查脚本能否使用工具提供的数据和输出目录，再创建清单供我批准。
 
@@ -176,11 +195,11 @@ write_metrics(step=100, metrics={"loss": 0.25}, split="validation", epoch=2)
 - **你批准的是一份固定清单。** 代码、命令、环境或资源范围变化后，程序需要新的批准。依赖安装也需要单独批准。
 - **同一实例不会因重复导入而新建记录。** 程序先按平台身份匹配，再按主机、SSH 端口和用户名匹配手动记录。多个候选需要你明确选择，显示名称不作为合并依据。
 - **平台到期时间优先。** 手动编辑不会覆盖已保存的平台时间。新的有效导入会更新旧值；读取失败时，程序保留此前的平台时间。估算时间会明确标记。
-- **本地离线与训练失败是两回事。** 关闭 Codex 或本地电脑后，已完整提交的远程队列继续运行；结果同步会等待本地服务恢复。
+- **本地离线与训练失败是两回事。** 关闭 Agent 或本地电脑后，已完整提交的远程队列继续运行；结果同步会等待本地服务恢复。
 - **实例续期需要刷新配置。** 你可以再次从平台导入时间。运行中或状态待核实的任务会阻止连接配置更新；旧批准也会因配置变化而失效。
 - **任务必须留出到期余量。** 剩余期限不足“任务最长运行时间 + 30 分钟”时，服务器不会启动该任务。程序不会强制停止已经运行的训练。
 
-你可以在面板中停止任务，也可以让 Codex 调用 `cancel_jobs`。网络断开时，停止请求可能无法立即送达。多实例队列、文件限制、失败处理和下载规则详见 [运行规则](docs/OPERATIONS.md)。
+你可以在面板中停止任务，也可以让 Agent 调用 `cancel_jobs`。网络断开时，停止请求可能无法立即送达。多实例队列、文件限制、失败处理和下载规则详见 [运行规则](docs/OPERATIONS.md)。
 
 ## 如何查看 CPU、GPU 和内存使用情况？
 
@@ -231,14 +250,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 
 如果 `git pull` 提示冲突或无法快进，你应先处理本地改动，再继续更新。
 
-默认端口是 `8765`。你需要更换端口时，应同时给 `start.ps1` 和 `configure-codex.ps1` 传入相同的 `-Port`。CLI 默认状态目录是用户主目录中的 `.campus-runner`；本仓库脚本明确使用项目内目录。你手动运行 CLI 时，需要让服务、面板和 MCP 使用相同的 `--home` 与 `--port`。
+默认端口是 `8765`。你需要更换端口时，应给 `start.ps1` 与 `configure-mcp.ps1` 传入相同的 `-Port`，再重新加载导出配置；使用 Codex 注册脚本时也需传入相同端口。CLI 默认状态目录是用户主目录中的 `.campus-runner`；本仓库脚本明确使用项目内目录。你手动运行 CLI 时，需要让服务、面板和 MCP 使用相同的 `--home` 与 `--port`。
 
 ## 常见问题
 
 | 你遇到的现象 | 你可以先检查什么 |
 |---|---|
 | 面板提示没有访问凭据 | 你通过启动脚本或 `campus_runner.cli --home .\.campus-runner open` 重新打开面板。 |
-| Codex 找不到工具或连不上服务 | 你先启动本地服务，再检查 MCP 注册、项目绝对路径、状态目录和端口，并重新加载会话。 |
+| Agent 找不到工具或连不上服务 | 你先启动本地服务，再运行 `mcp-check`。你检查客户端是否支持本地 STDIO、是否加载了正确配置，以及绝对路径、状态目录和端口是否一致。 |
 | Python 环境没有 pip | 你可以执行 `.\.venv\Scripts\python.exe -m ensurepip --upgrade`，然后重新安装依赖。 |
 | 学校登录窗口打不开 | 你检查系统 Edge 是否安装，以及本地网络能否打开学校平台。你也可以先用手动配置。 |
 | 登录后没有读到实例 | 你进入学校“实例”列表再读取；程序只读取当前分页。连接图标无法识别时，你可以打开目标弹窗后使用“读取我已打开的连接弹窗”。 |
@@ -246,7 +265,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 | 实例仍显示“尚未通过离线检查” | 你查看连接检查结果，核对指纹、Conda 环境、目录和后台进程支持情况。 |
 | 日志不再更新 | 你先检查本地网络、服务状态和最后确认时间。日志停止同步不等于远程训练失败。 |
 | 结果页面没有曲线 | 你检查脚本是否写入统一指标，是否使用正确的输出路径，以及指标文件是否已同步。 |
-| 权重没有自动下载 | 你在任务详情选择对应文件下载，或让 Codex 调用 `fetch_artifacts`。 |
+| 权重没有自动下载 | 你在任务详情选择对应文件下载，或让 Agent 调用 `fetch_artifacts`。 |
 
 ## 开发与验证
 
@@ -269,7 +288,8 @@ $env:CAMPUS_BROWSER_TESTS = '1'
 
 | 你想了解的内容 | 对应文件 |
 |---|---|
-| Codex 应如何操作实验 | [操作技能](skills/campus-training/SKILL.md) |
+| Agent 应如何操作实验 | [通用操作说明](docs/AGENT_GUIDE.md) |
+| 各种 Agent 的 MCP 配置 | [客户端接入](docs/MCP_CLIENTS.md) |
 | 清单、队列和结果下载规则 | [运行规则](docs/OPERATIONS.md) |
 | 一键批准、资源采集规则与耗时 | [资源与审批验收](docs/RESOURCE_MONITOR.md) |
 | 单实例真实 GPU 验收 | [实例验收记录](docs/INSTANCE_ACCEPTANCE.md) |

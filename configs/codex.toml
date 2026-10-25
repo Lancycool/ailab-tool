@@ -1,8 +1,10 @@
-# Add this section to the Codex configuration, or run scripts/configure-codex.ps1.
-# Adjust absolute paths if the project moves. Do not put SSH passwords here.
 [mcp_servers.campus-runner]
-command = 'E:\Projects\ailab\.venv\Scripts\python.exe'
-args = ['-m', 'campus_runner.cli', '--home', 'E:\Projects\ailab\.campus-runner', '--port', '8765', 'mcp']
+command = "C:/path/to/ailab-tool/.venv/Scripts/python.exe"
+args = ["-X", "utf8", "-m", "campus_runner.cli", "--home", "C:/path/to/ailab-tool/.campus-runner", "--port", "8765", "mcp"]
 startup_timeout_sec = 15
 tool_timeout_sec = 60
 enabled = true
+
+[mcp_servers.campus-runner.env]
+PYTHONUTF8 = "1"
+PYTHONIOENCODING = "utf-8"

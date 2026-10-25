@@ -6,6 +6,7 @@ import urllib.request
 
 from .models import Batch
 from .store import Store
+from .client_config import INSTRUCTIONS
 
 
 def obj(properties=None, required=None):
@@ -42,7 +43,7 @@ def handle(message, call):
         requested = message.get("params", {}).get("protocolVersion", "2024-11-05")
         version = requested if requested in ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25") else "2025-11-25"
         response["result"] = {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
-                              "serverInfo": {"name": "campus-runner", "version": "0.1.0"}}
+                              "serverInfo": {"name": "campus-runner", "version": "0.1.0"}, "instructions": INSTRUCTIONS}
     elif method == "ping":
         response["result"] = {}
     elif method == "tools/list":
@@ -68,16 +69,17 @@ def serve(home, port):
         sys.stdin.reconfigure(encoding="utf-8")
         sys.stdout.reconfigure(encoding="utf-8")
     store = Store(home)
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     def call(name, args):
         request = urllib.request.Request(f"http://127.0.0.1:{port}/api/tools/{name}", data=json.dumps(args).encode(),
                                          headers={"Authorization": "Bearer " + store.token(), "Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
+            with opener.open(request, timeout=60) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
             raise RuntimeError(exc.read().decode()) from exc
         except urllib.error.URLError as exc:
-            raise RuntimeError("本地管理服务未启动。请运行 campus-runner serve。") from exc
+            raise RuntimeError("无法访问本地管理服务。请先启动服务，并核对 MCP 与面板的 --home、--port 是否一致。") from exc
     for line in sys.stdin:
         try:
             message = json.loads(line)

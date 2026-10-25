@@ -16,3 +16,8 @@ dist/
 *.token
 .vscode/
 .idea/
+.claude/
+.cursor/
+.workbuddy/
+.dsh/
+.mcp.json

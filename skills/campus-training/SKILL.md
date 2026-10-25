@@ -1,6 +1,6 @@
 ---
 name: campus-training
-description: 使用 Campus Runner 管理学校 SSH 实例上的代码上传、批量训练、日志读取和实验汇总。适用于已经配置 Campus Runner MCP 的本地 Codex 会话。
+description: 使用 Campus Runner 管理学校 SSH 实例上的代码上传、批量训练、日志读取和实验汇总。适用于已经配置 Campus Runner MCP 的本地 MCP STDIO Agent 会话。
 ---
 
 # 校园远程训练
