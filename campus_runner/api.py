@@ -62,7 +62,7 @@ def create_app(home, service=None, background=True, port=8765):
 
     @app.get("/static/{name}")
     def asset(name: str):
-        if name not in ("app.js", "portal.js", "resources.js", "style.css"):
+        if name not in ("app.js", "portal.js", "resources.js", "style.css", "logo.png"):
             raise HTTPException(404)
         return FileResponse(static / name)
 
