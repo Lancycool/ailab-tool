@@ -62,7 +62,7 @@ def create_app(home, service=None, background=True, port=8765):
 
     @app.get("/static/{name}")
     def asset(name: str):
-        if name not in ("app.js", "style.css"):
+        if name not in ("app.js", "portal.js", "style.css"):
             raise HTTPException(404)
         return FileResponse(static / name)
 
@@ -75,6 +75,27 @@ def create_app(home, service=None, background=True, port=8765):
     @app.post("/api/panel/host-key")
     def host_key(payload: dict):
         return manager.confirm_key(payload["instance_id"], payload["fingerprint"])
+
+    @app.post("/api/panel/portal/start")
+    def portal_start():
+        return manager.portal.start()
+
+    @app.post("/api/panel/portal/status")
+    def portal_status():
+        return manager.portal.status()
+
+    @app.post("/api/panel/portal/read")
+    def portal_read(payload: dict):
+        return manager.portal.command(payload.get("action"), payload.get("session_id"), payload.get("platform_id"))
+
+    @app.post("/api/panel/portal/close")
+    def portal_close():
+        manager.portal.close()
+        return {"status": "closing"}
+
+    @app.post("/api/panel/portal/save")
+    def portal_save(payload: dict):
+        return manager.portal.save(manager, payload)
 
     @app.post("/api/panel/approve")
     def approve(payload: dict):

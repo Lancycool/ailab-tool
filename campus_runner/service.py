@@ -26,6 +26,8 @@ class Service:
         self.lock = threading.RLock()
         self.stop = threading.Event()
         self.poller = None
+        from .portal import Portal
+        self.portal = Portal()
         for op in self.store.all("operation"):
             if op["status"] in ("queued", "running"):
                 op.update(status="interrupted", message="本地服务重启；请重试查询或提交，任务编号保持不变")
@@ -37,6 +39,7 @@ class Service:
 
     def close(self):
         self.stop.set()
+        self.portal.close()
         if self.poller:
             self.poller.join(timeout=2)
         self.pool.shutdown(wait=False, cancel_futures=True)
@@ -53,11 +56,14 @@ class Service:
                 old = self.store.get("instance", key)
             except KeyError:
                 old = {}
+            if "portal" not in value and old.get("portal") and instance["username"] == old.get("username"):
+                instance["portal"] = old["portal"]
             if any(j.get("instance_id") == key and (j.get("status") in ("queued", "starting", "running") or (j.get("status") == "unknown" and j.get("resources_reserved", True))) for j in self.store.all("job")):
                 raise ValueError("该实例仍有运行中或状态待核实任务；请先核实任务，再更新连接")
             # Any edit creates a new revision and requires a new readiness probe.
             instance.update(revision=uuid.uuid4().hex, connection="unchecked", ready=False,
-                            host_key=old.get("host_key") if all(instance.get(k) == old.get(k) for k in ("host", "port", "username")) else None)
+                            host_key=old.get("host_key") if all(instance.get(k) == old.get(k) for k in ("host", "port", "username")) and
+                            all((instance.get("portal") or {}).get(k) == (old.get("portal") or {}).get(k) for k in ("origin", "account", "platform_id")) else None)
             if password:
                 self.credentials.set(key, password)
             self.store.put("instance", key, instance)
