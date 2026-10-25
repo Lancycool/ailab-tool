@@ -6,7 +6,7 @@
 
 **Campus Runner 让本地 Agent 通过 SSH 管理校园服务器上的训练。**
 
-在本地写代码，让 Agent 准备实验，再在浏览器面板点击一次“批准并提交”。程序会上传代码、在服务器运行训练，并把日志和指标同步回来。不需要为每次实验手动打开 FinalShell、上传文件，再逐条输入训练命令。也不需要依赖本地网络的持续性连接。
+在本地写代码，让 Agent 准备实验，再在浏览器面板点击一次“批准并提交”。程序会上传代码、在服务器运行训练，并把日志和指标同步回来。不需要为每次实验手动打开 FinalShell、上传文件，再逐条输入训练命令。即使本地PC网络波动也再也不用担心啦~
 
 本项目适合已经拥有学校 GPU 实例，希望让 Agent 管理训练流程的用户。当前版本面向 **Windows 本地电脑 + Linux 服务器 + Conda 环境**。学校平台自动导入目前只适配陕西师范大学的 `ailab.snnu.edu.cn`；其他可通过 SSH 访问的服务器可以手动配置，但需要自行验证兼容性。（默认你为SNNU学生，已连接校园网，这个[SNNU校园网自动认证脚本](https://github.com/Lancycool/snnu-portal)也许你会感兴趣:>）
 
@@ -37,7 +37,7 @@
 | 位置 | 需要具备的条件 |
 |---|---|
 | 本地电脑 | Windows、Git、Python 3.11 或以上版本。 |
-| AI Agent | 支持本地 MCP STDIO 的客户端，例如 Claude Code、Cursor、WorkBuddy、DeepSeek Harness 或 Codex。 |
+| AI Agent | 支持本地 MCP STDIO 的客户端，例如 Codex、Claude Code、Cursor、WorkBuddy、DeepSeek Harness。 |
 | 网络 | 本地电脑能访问服务器 SSH 地址；学校内网实例需要在可访问校园内网的环境使用。 |
 | 学校平台导入 | 本地已安装 Microsoft Edge；程序通过 Playwright 打开独立登录窗口。 |
 | 远程服务器 | Linux、SSH/SFTP、Python 3.8 或以上版本、Conda，以及可用的 GPU 和 `nvidia-smi`。 |
@@ -135,15 +135,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 |---|---|
 | 实例编号 | `gpu-a`。你和 Agent 会用这个编号指定服务器。 |
 | 显示名称 | `我的训练实例`。名称用于面板展示。 |
-| 主机与 SSH 端口 | 你填写平台分配的外部地址，例如 `192.0.2.10`、`24060`；不要照抄示例地址。 |
+| 主机与 SSH 端口 | 你填写平台分配的外部地址，例如 `10.8.51.23`、`66666`；不要照抄示例端口。 |
 | 用户名、密码 | 你填写能够登录该实例的 SSH 账号和密码。 |
 | 远程工作目录 | 你输入用户名后，程序默认填写 `/home/用户名`；实际目录不同时，你可以修改。 |
 | Conda 程序或安装目录 | 程序默认填写 `/opt/conda/bin/conda`，也接受安装目录 `/opt/conda`。 |
-| 默认训练环境 | 你填写已有环境名称，例如 `radar`，或环境的绝对路径。 |
+| 默认训练环境 | 你填写已有环境名称，例如 `your_env`，或环境的绝对路径。 |
 | Python 命令 | 程序默认使用 `python3`，用于运行远程任务管理脚本。 |
 | 到期时间 | 你填写实例的到期时间，面板按北京时间显示。 |
 
-**Conda 程序路径和训练环境是两个字段。** `/home/user/.conda/envs/radar` 是训练环境目录，不应填到 Conda 程序字段。两种添加方式都会提供默认路径，并保留你修改过的自定义值。
+**Conda 程序路径和训练环境是两个字段。** `/home/user/.conda/envs/your_env` 是训练环境目录，不应填到 Conda 程序字段。两种添加方式都会提供默认路径，并保留你修改过的自定义值。
 
 **两种方式都需要完成连接检查。** 你保存后点击“检查连接与后台运行”。首次连接时，程序会要求你核对服务器指纹。检查通过后，实例会显示“在线”和“已通过离线检查”。
 
@@ -153,7 +153,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 
 你可以把下面这段话发给 Agent，并替换实例编号、环境名和 GPU 编号：
 
-> 请先读取 docs/AGENT_GUIDE.md。请用 Campus Runner，为当前仓库的 examples/acceptance 目录生成快照。请在实例 gpu-a 的 GPU 0 上，使用 radar 环境运行 python train.py --steps 12 --seed 7。最长运行时间设为 180 秒。示例使用合成数据，不传数据集路径；数据集标识设为 demo-synthetic，评价方式设为 smoke-v1。主要指标是 train split 的 loss，数值越小越好。请先创建实验清单，告诉我面板批准入口。你不需要等待我回聊天确认；我点击“批准并提交”后，本地服务会自动提交。请不要安装依赖。
+> 请先读取 docs/AGENT_GUIDE.md。请用 Campus Runner，为当前仓库的 examples/acceptance 目录生成快照。请在实例 gpu-a 的 GPU 0 上，使用 your_env 环境运行 python train.py --steps 12 --seed 7。最长运行时间设为 180 秒。示例使用合成数据，不传数据集路径；数据集标识设为 demo-synthetic，评价方式设为 smoke-v1。主要指标是 train split 的 loss，数值越小越好。请先创建实验清单，告诉我面板批准入口。你不需要等待我回聊天确认；我点击“批准并提交”后，本地服务会自动提交。请不要安装依赖。
 
 你接着完成下面的流程：
 
@@ -168,7 +168,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 
 你需要告诉 Agent 本地项目目录、服务器数据集路径、Conda 环境、训练命令、GPU、时间上限，以及主要评价指标。你可以这样描述：
 
-> 请把 E:\Projects\my-training 生成代码快照，在 gpu-a 的 GPU 0 上使用 radar 环境训练。数据集已经位于服务器 /data/radar。请使用 python train.py --epochs 20，最长运行 4 小时，以 validation split 的 loss 作为主要指标，越小越好。请先检查脚本能否使用工具提供的数据和输出目录，再创建清单供我批准。
+> 请把 E:\Projects\my-training 生成代码快照，在 gpu-a 的 GPU 0 上使用 your_env 环境训练。数据集已经位于服务器 /data/dataset_name。请使用 python train.py --epochs 20，最长运行 4 小时，以 validation split 的 loss 作为主要指标，越小越好。请先检查脚本能否使用工具提供的数据和输出目录，再创建清单供我批准。
 
 训练脚本需要把结果写入程序指定的目录，并输出统一指标。你可以把 [metrics.py](campus_runner/metrics.py) 复制到训练项目，然后在已有指标计算之后调用它：
 
