@@ -31,6 +31,15 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class PortalSource(Strict):
+    origin: Literal["https://ailab.snnu.edu.cn"]
+    platform_id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,128}$")
+    account: str = Field(min_length=1, max_length=200)
+    observed_at: datetime
+    remaining_text: str = Field(default="", max_length=500)
+    expiry_estimated: bool = False
+
+
 class Instance(Strict):
     id: str = Field(pattern=r"^[a-zA-Z0-9_-]{1,64}$")
     name: str = Field(min_length=1, max_length=100)
@@ -42,6 +51,7 @@ class Instance(Strict):
     conda: str
     default_environment: str = ""
     expires_at: datetime
+    portal: PortalSource | None = None
 
     @field_validator("root", "conda")
     @classmethod

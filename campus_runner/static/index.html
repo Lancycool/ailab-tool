@@ -1,12 +1,27 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>校园训练台 · Campus Runner</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>校园训练台 · Campus Runner</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script><script src="/static/portal.js" defer></script></head>
 <body>
 <aside><a class="brand" href="#instances"><span class="mark">▥</span> 校园训练台</a><p class="caption">本地连接，远程执行</p><nav aria-label="主导航"><a href="#instances">实例管理</a><a href="#approvals">实验批准</a><a href="#tasks">任务详情</a><a href="#results">结果对比</a></nav><div class="sidebar-foot"><span id="connection-dot"></span><span id="service-state">正在连接本地服务</span><p>服务器继续训练时，你可以离开这个页面。</p></div></aside>
 <main><header><div><p id="breadcrumb">工作台 / 实例管理</p><h1 id="heading">连接你的计算资源</h1></div><button id="refresh" class="secondary">刷新状态</button></header>
 <div id="notice" role="status" aria-live="polite" hidden></div>
 <section id="login" hidden><h2>打开本地面板</h2><p>请在终端运行 <code>campus-runner open</code>。程序会打开带访问凭据的本机页面。</p></section>
-<section id="instances" class="page"><div class="section-heading"><h2>已配置实例</h2><button id="toggle-instance">添加实例</button></div><div id="instance-list"></div>
+<section id="instances" class="page"><div class="section-heading"><h2>已配置实例</h2><div><button id="portal-open">从学校平台导入 / 刷新</button> <button id="toggle-instance" class="secondary">手动填写</button></div></div>
+<section id="portal-panel" hidden><h2>从学校平台导入实例</h2><p>程序会打开独立 Edge 窗口。请在学校网页自行登录。程序不读取登录密码，也不保存网页登录状态。</p><p id="portal-message" role="status"></p><div class="actions"><button id="portal-scan" type="button">我已登录，读取实例列表</button><button id="portal-close" type="button" class="secondary">关闭导入窗口</button></div><p class="muted">程序读取学校列表当前页。其他分页请在学校窗口切换后重新读取。</p><div id="portal-candidates"></div>
+<form id="portal-form" hidden><h3 id="portal-selected">核对连接信息</h3><div class="form-grid">
+<label>SSH 外部映射<select name="mapping_index" required></select></label>
+<label>SSH 用户名<input name="username" required autocomplete="username"></label>
+<label>更新已有实例 / 复制环境配置<select name="target_instance_id"><option value="">创建新实例（重复导入会自动匹配）</option></select></label>
+<label>复用相同用户名的凭据<select name="credential_instance_id"><option value="">填写密码或保留当前实例密码</option></select></label>
+<label>SSH 密码<input name="password" type="password" autocomplete="new-password" placeholder="首次填写，后续可以复用"></label>
+<label>显示名称<input name="name" required></label>
+<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label>
+<label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda"></label>
+<label>默认训练环境<input name="default_environment" placeholder="radar"></label>
+<label>Python 命令<input name="python" value="python3" required></label>
+<label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required></label>
+</div><p id="portal-expiry-note" class="muted"></p><button type="submit">确认并保存连接信息</button></form></section>
+<div id="instance-list"></div>
 <form id="instance-form" hidden><h2>实例连接信息</h2><p>你可以重复填写同一编号更新实例。更新后，程序会重新检查后台运行能力。</p><div class="form-grid">
 <label>实例编号<input name="id" required pattern="[a-zA-Z0-9_-]+" placeholder="gpu-a"></label><label>显示名称<input name="name" required placeholder="实验室 A · 训练实例"></label>
 <label>主机地址<input name="host" required placeholder="192.0.2.10"></label><label>SSH 端口<input name="port" type="number" value="22" required min="1" max="65535"></label>
