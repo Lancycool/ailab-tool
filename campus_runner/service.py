@@ -3,17 +3,32 @@ import concurrent.futures
 import fnmatch
 import hashlib
 import json
+import math
 import os
 import threading
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import metrics, snapshots
 from .models import Batch, Instance, connection_identity, digest, relative, utcnow
 from .store import Store
 from .transport import Credentials, HostKeyRequired, RemoteError, SSH
+
+
+def job_update_time(job, batch_created=None):
+    """Return a real state/lifecycle timestamp, never the latest polling time."""
+    for value in (job.get("updated_at"), job.get("finished_at"), job.get("started_at"), job.get("created_at"), batch_created):
+        try:
+            if value is None or isinstance(value, bool):
+                continue
+            epoch = float(value) if isinstance(value, (int, float)) else datetime.fromisoformat(value).timestamp()
+            if math.isfinite(epoch) and 0 <= epoch < 253402300800:
+                return epoch
+        except (ValueError, TypeError, OverflowError, OSError):
+            continue
+    return None
 
 
 class Service:
@@ -360,7 +375,8 @@ class Service:
                                     self.store.get("job", run_id)
                                 except KeyError:
                                     self.store.put("job", run_id, {"id": run_id, "batch_id": key, "instance_id": iid,
-                                                                   "instance_revision": inst["revision"], "status": "queued", "spec": job})
+                                                                   "instance_revision": inst["revision"], "status": "queued", "spec": job,
+                                                                   "created_at": utcnow(), "updated_at": time.time()})
                             body = {"jobs": remote_jobs}
                             remote.rpc("stage", batch={"id": key, "digest": digest(body), "body": body})
                             remote.rpc("activate", batch_id=key)
@@ -474,7 +490,10 @@ class Service:
                             job["remote_files"] = retained
                             job["files"] = entries
                         else:
-                            job.update(status="unknown", reason="远程缺少任务记录；请核对实例身份")
+                            reason = "远程缺少任务记录；请核对实例身份"
+                            if job.get("status") != "unknown" or job.get("reason") != reason:
+                                job["updated_at"] = time.time()
+                            job.update(status="unknown", reason=reason)
                         self.store.put("job", job["id"], job)
                         self.persist_config(job)
                 self.store.put("instance", iid, inst)
@@ -507,9 +526,19 @@ class Service:
     def get_status(self, batch_id=None, operation_id=None):
         if operation_id:
             return self.store.get("operation", operation_id)
-        jobs = self.store.all("job")
-        return {"instances": self.list_instances(), "batches": [b for b in self.store.all("batch") if not batch_id or b["id"] == batch_id],
-                "jobs": [j for j in jobs if not batch_id or j["batch_id"] == batch_id], "operations": self.store.all("operation")[:30]}
+        batches = self.store.all("batch")
+        batch_created = {b["id"]: b.get("created_at") for b in batches}
+        jobs = []
+        for job in self.store.all("job"):
+            if batch_id and job["batch_id"] != batch_id:
+                continue
+            # A sync timestamp says when we read a record, not when its state changed.
+            epoch = job_update_time(job, batch_created.get(job.get("batch_id")))
+            job["status_updated_at"] = datetime.fromtimestamp(epoch, timezone.utc).isoformat() if epoch is not None else None
+            jobs.append(job)
+        jobs.sort(key=lambda job: (job_update_time(job, batch_created.get(job.get("batch_id"))) or 0, job["id"]), reverse=True)
+        return {"instances": self.list_instances(), "batches": [b for b in batches if not batch_id or b["id"] == batch_id],
+                "jobs": jobs, "operations": self.store.all("operation")[:30]}
 
     def read_logs(self, run_id, offset=0, limit=32768, tail=False):
         self.store.get("job", run_id)
