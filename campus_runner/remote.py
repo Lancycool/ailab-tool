@@ -5,6 +5,7 @@ RPC input and output are JSON. No remote TCP listener is opened.
 import argparse
 import base64
 import contextlib
+import csv
 import hashlib
 import json
 import os
@@ -125,6 +126,66 @@ def gpu_info():
     for gpu in gpus:
         gpu["busy"] = gpu["uuid"] in occupied
     return gpus
+
+
+def resource_info(proc=Path("/proc"), cgroup=Path("/sys/fs/cgroup")):
+    """One non-blocking CPU/memory snapshot and a bounded GPU query."""
+    started = time.monotonic()
+    counters = [int(v) for v in (proc / "stat").read_text().splitlines()[0].split()[1:9]]
+    cpu = {"scope": "system", "total": sum(counters), "idle": counters[3] + counters[4],
+           "logical_cpus": len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count(),
+           "model": "Unknown"}
+    for line in (proc / "cpuinfo").read_text().splitlines():
+        if line.startswith("model name"):
+            cpu["model"] = line.split(":", 1)[1].strip()
+            break
+    memory_values = {}
+    for line in (proc / "meminfo").read_text().splitlines():
+        key, value = line.split(":", 1)
+        memory_values[key] = int(value.split()[0]) * 1024
+    memory = {"scope": "system", "total_bytes": memory_values["MemTotal"],
+              "used_bytes": max(0, memory_values["MemTotal"] - memory_values.get("MemAvailable", memory_values.get("MemFree", 0)))}
+    # Resolve a cgroup v2 namespace mount. Unavailable limits fall back to labelled system values.
+    candidates = [cgroup]
+    try:
+        relative = next(line.split("::", 1)[1] for line in (proc / "self/cgroup").read_text().splitlines() if line.startswith("0::"))
+        nested = (cgroup / relative.lstrip("/")).resolve()
+        if cgroup.resolve() in nested.parents:
+            candidates.insert(0, nested)
+    except (OSError, StopIteration):
+        pass
+    for directory in candidates:
+        try:
+            quota, period = (directory / "cpu.max").read_text().split()
+            if quota != "max":
+                capacity = min(float(cpu["logical_cpus"]), int(quota) / int(period))
+                usage = dict(line.split() for line in (directory / "cpu.stat").read_text().splitlines())
+                total = time.monotonic() * capacity * 1_000_000
+                cpu.update(scope="cgroup", capacity=capacity, total=total, idle=total - int(usage["usage_usec"]))
+            maximum = (directory / "memory.max").read_text().strip()
+            if maximum != "max":
+                memory.update(scope="cgroup", total_bytes=int(maximum), used_bytes=int((directory / "memory.current").read_text()))
+            break
+        except (OSError, ValueError, KeyError):
+            continue
+    gpus, warnings = [], []
+    try:
+        query = subprocess.run(["nvidia-smi", "--query-gpu=index,uuid,name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5, check=True)
+        def number(value):
+            try:
+                return float(value.strip())
+            except ValueError:
+                return None
+        for row in csv.reader(query.stdout.splitlines(), skipinitialspace=True):
+            index, uid, name, utilization, total, used, temperature, power = row
+            gpus.append({"index": int(index), "uuid": uid, "name": name, "utilization_percent": number(utilization),
+                         "memory_total_mb": number(total), "memory_used_mb": number(used),
+                         "temperature_c": number(temperature), "power_w": number(power)})
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        warnings.append("GPU 资源读取不可用：" + type(exc).__name__)
+    return {"cpu": cpu, "memory": memory, "gpus": gpus, "warnings": warnings,
+            "boot_id": (proc / "sys/kernel/random/boot_id").read_text().strip(),
+            "sampled_at": time.time(), "collection_ms": round((time.monotonic() - started) * 1000)}
 
 
 def detach(root, args):
@@ -472,6 +533,8 @@ class Runner:
             return {"jobs": self.states(), "heartbeat": read(self.root / "heartbeat.json")}
         if op == "gpus":
             return gpu_info()
+        if op == "resources":
+            return resource_info()
         if op == "probe_start":
             probe = request["probe_id"]
             safe(self.root / "probes", probe + ".json")

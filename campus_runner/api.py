@@ -62,7 +62,7 @@ def create_app(home, service=None, background=True, port=8765):
 
     @app.get("/static/{name}")
     def asset(name: str):
-        if name not in ("app.js", "portal.js", "style.css"):
+        if name not in ("app.js", "portal.js", "resources.js", "style.css"):
             raise HTTPException(404)
         return FileResponse(static / name)
 
@@ -99,7 +99,13 @@ def create_app(home, service=None, background=True, port=8765):
 
     @app.post("/api/panel/approve")
     def approve(payload: dict):
-        return manager.approve(payload["batch_id"], payload["digest"])
+        return manager.approve_and_submit(payload["batch_id"], payload["digest"])
+
+    @app.post("/api/panel/resources")
+    def resources(payload: dict):
+        if type(payload.get("refresh", True)) is not bool:
+            raise ValueError("refresh 必须为布尔值")
+        return manager.request_resources(payload.get("refresh", True))
 
     @app.post("/api/tools/{name}")
     async def tool(name: str, payload: dict):
@@ -114,7 +120,7 @@ def dispatch(manager, name, args):
         "inspect_instance": lambda: manager.operation(name, lambda: manager.inspect_instance(**args)),
         "prepare_snapshot": lambda: manager.operation(name, lambda: manager.prepare_snapshot(**args)),
         "create_batch": lambda: manager.create_batch(args["batch"]),
-        "submit_batch": lambda: manager.operation(name, lambda: manager.submit_batch(args["key"])),
+        "submit_batch": lambda: manager.queue_submission(args["key"]),
         "get_status": lambda: manager.get_status(**args),
         "read_logs": lambda: manager.read_logs(**args),
         "get_metrics": lambda: manager.get_metrics(**args),

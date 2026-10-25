@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 from campus_runner.api import create_app
 from campus_runner.portal import Observations, SchoolBrowser, URL
 from test_portal import prepared, manual_match
+from conftest import batch
+from campus_runner.models import utcnow
 
 pytestmark = pytest.mark.skipif(os.environ.get('CAMPUS_BROWSER_TESTS') != '1', reason='Requires installed Edge and browser process access')
 
@@ -33,6 +35,44 @@ def test_real_dom_scan_and_connection_dialog():
         assert candidates[0]['expiry_estimated'] is False
         assert candidates[0]['state'] == '运行中'
         assert adapter.connections(candidates[0]) == [{'host':'192.0.2.4','port':24060}]
+        browser.close()
+
+
+def test_one_click_approval_and_resource_pause(service,monkeypatch):
+    from playwright.sync_api import sync_playwright
+    from test_resources_approval import sample
+    created=service.create_batch(batch(service))
+    for instance in service.list_instances():
+        service.store.put('resources',instance['id'],{**sample(),'revision':instance['revision'],'received_at':utcnow()})
+    monkeypatch.setattr(service,'collect_resources',lambda iid: None)
+    app=create_app(service.store.home,service,background=False)
+    requests=[]
+    with TestClient(app,base_url='http://127.0.0.1:8765') as client,sync_playwright() as pw:
+        browser=pw.chromium.launch(channel='msedge',headless=True)
+        page=browser.new_page()
+        errors=[]
+        page.on('pageerror',lambda error:errors.append(str(error)))
+        def handle(route):
+            req=route.request
+            if req.url.endswith('/api/panel/resources'):
+                requests.append(req.post_data)
+            response=client.request(req.method,req.url,content=req.post_data_buffer,
+                headers={k:v for k,v in req.headers.items() if k in ('authorization','content-type','origin')})
+            route.fulfill(status=response.status_code,body=response.content,
+                headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')})
+        page.route('http://127.0.0.1:8765/**',handle)
+        page.goto('http://127.0.0.1:8765/#token='+service.store.token('panel'))
+        page.locator('.resource-tile').first.wait_for()
+        assert page.locator('#resource-interval').input_value()=='10'
+        page.locator('#resource-interval').select_option('0')
+        before=len(requests)
+        page.get_by_role('link',name='实验批准',exact=True).click()
+        page.get_by_role('button',name='批准并提交',exact=True).click()
+        page.get_by_text('清单已批准，程序正在后台上传并提交。',exact=False).wait_for()
+        page.wait_for_timeout(200)
+        assert service.store.get('batch',created['batch_id'])['all_accepted']
+        assert len(requests)==before
+        assert not errors
         browser.close()
 
 

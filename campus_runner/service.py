@@ -22,9 +22,14 @@ class Service:
         self.credentials = credentials or Credentials(self.store.home)
         self.transport = transport
         self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
+        self.resource_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self.locks = {}
         self.lock = threading.RLock()
         self.registry_lock = threading.RLock()
+        self.resource_lock = threading.RLock()
+        self.resource_pending = {}
+        self.resource_due = {}
+        self.resource_failures = {}
         self.stop = threading.Event()
         self.poller = None
         from .portal import Portal
@@ -44,6 +49,7 @@ class Service:
         if self.poller:
             self.poller.join(timeout=2)
         self.pool.shutdown(wait=False, cancel_futures=True)
+        self.resource_pool.shutdown(wait=False, cancel_futures=True)
 
     def instance_lock(self, key):
         with self.lock:
@@ -132,6 +138,12 @@ class Service:
     def list_instances(self):
         rows = self.store.all("instance")
         for row in rows:
+            try:
+                cached = self.store.get("resources", row["id"])
+                if cached.get("revision") == row["revision"]:
+                    row["resources"] = cached
+            except KeyError:
+                pass
             remain = datetime.fromisoformat(row["expires_at"]).timestamp() - time.time()
             row["expiry_warning"] = "expired" if remain <= 0 else "6h" if remain <= 21600 else "24h" if remain <= 86400 else None
         return rows
@@ -212,7 +224,7 @@ class Service:
         key = uuid.uuid4().hex
         batch = {"id": key, "body": body, "digest": digest(body), "approved_digest": None, "created_at": utcnow(), "instances": {}}
         self.store.put("batch", key, batch)
-        return {"batch_id": key, "digest": batch["digest"], "review_path": "/#approvals", "batch": batch}
+        return {"batch_id": key, "digest": batch["digest"], "review_path": "/#approvals", "next_step": "请用户在面板点击批准并提交；本地服务自动提交，无需返回聊天再次确认。", "batch": batch}
 
     def approve(self, key, expected_digest):
         with self.lock:
@@ -224,10 +236,93 @@ class Service:
             self.store.event("batch-approved", key, {"digest": expected_digest})
             return batch
 
+    def approve_and_submit(self, key, expected_digest):
+        with self.instance_lock("dispatch:" + key):
+            self.approve(key, expected_digest)
+            return self.queue_submission(key)
+
+    def queue_submission(self, key):
+        with self.instance_lock("dispatch:" + key):
+            batch = self.store.get("batch", key)
+            if batch["approved_digest"] != digest(batch["body"]):
+                raise ValueError("实验清单尚未批准或内容发生变化")
+            previous = batch.get("submission_operation_id")
+            if previous:
+                operation = self.store.get("operation", previous)
+                if operation["status"] in ("queued", "running") or batch.get("all_accepted"):
+                    return {"operation_id": previous, "status": operation["status"], "batch_id": key}
+            operation = self.operation("submit_batch", lambda: self.submit_batch(key))
+            batch["submission_operation_id"] = operation["operation_id"]
+            self.store.put("batch", key, batch)
+            return {**operation, "batch_id": key}
+
+    def request_resources(self, refresh=True):
+        """Panel-driven, bounded collection; cache reads never contact a server."""
+        instances = self.list_instances()
+        with self.resource_lock:
+            for iid, future in list(self.resource_pending.items()):
+                if future.done():
+                    del self.resource_pending[iid]
+            if refresh:
+                for instance in instances:
+                    iid = instance["id"]
+                    if instance.get("ready") and instance.get("host_key") and iid not in self.resource_pending and time.monotonic() >= self.resource_due.get(iid, 0):
+                        self.resource_due[iid] = time.monotonic() + 5
+                        self.resource_pending[iid] = self.resource_pool.submit(self.collect_resources, iid)
+            return {"instances": [{"id": i["id"], "resources": i.get("resources"), "pending": i["id"] in self.resource_pending} for i in instances]}
+
+    def collect_resources(self, iid):
+        # Avoid queuing SSH probes behind uploads or other long operations.
+        guard = self.instance_lock(iid)
+        if not guard.acquire(blocking=False):
+            return
+        try:
+            instance = self.store.get("instance", iid)
+            if not instance.get("ready") or not instance.get("host_key"):
+                return
+            try:
+                started = time.monotonic()
+                with self.connect(instance) as remote:
+                    remote.deploy()
+                    sample = remote.rpc("resources")
+                try:
+                    previous = self.store.get("resources", iid)
+                except KeyError:
+                    previous = {}
+                cpu, old_cpu = sample["cpu"], previous.get("cpu", {})
+                cpu["percent"] = None
+                if sample.get("boot_id") == previous.get("boot_id") and instance["revision"] == previous.get("revision") and cpu["scope"] == old_cpu.get("scope") and cpu.get("capacity") == old_cpu.get("capacity"):
+                    total = cpu["total"] - old_cpu.get("total", cpu["total"])
+                    idle = cpu["idle"] - old_cpu.get("idle", cpu["idle"])
+                    if total > 0 and 0 <= idle <= total:
+                        cpu["percent"] = round(100 * (total - idle) / total, 1)
+                sample.update(revision=instance["revision"], received_at=utcnow(), rpc_elapsed_ms=round((time.monotonic() - started) * 1000), error=None)
+                self.store.put("resources", iid, sample)
+                self.resource_failures[iid] = 0
+                self.resource_due[iid] = time.monotonic() + 5
+            except Exception as exc:
+                try:
+                    previous = self.store.get("resources", iid)
+                except KeyError:
+                    previous = {}
+                if previous.get("revision") != instance["revision"]:
+                    previous = {}
+                previous.update(error=type(exc).__name__ + ": " + str(exc), failed_at=utcnow(), revision=instance["revision"])
+                self.store.put("resources", iid, previous)
+                failures = self.resource_failures.get(iid, 0) + 1
+                self.resource_failures[iid] = failures
+                self.resource_due[iid] = time.monotonic() + min(300, 10 * 2 ** min(failures, 5))
+                if isinstance(exc, HostKeyRequired):
+                    self.failure(instance, exc)
+        finally:
+            guard.release()
+
     def submit_batch(self, key):
         # Per-batch lock avoids concurrent replay while keeping different batches independent.
         with self.instance_lock("batch:" + key):
-            batch = self.store.get("batch", key)
+            # Read only after queue_submission has persisted the operation reference.
+            with self.instance_lock("dispatch:" + key):
+                batch = self.store.get("batch", key)
             if batch["approved_digest"] != digest(batch["body"]):
                 raise ValueError("实验清单尚未批准或内容发生变化")
             spec = batch["body"]["spec"]

@@ -18,7 +18,7 @@ TOOLS = [
     ("list_instances", "列出实例及连接状态。密码不通过工具提供。", obj()),
     ("inspect_instance", "检查实例并验证断开 SSH 后的后台运行能力。返回操作编号。", obj({"key": S, "environment": S, "data_path": S}, ["key"])),
     ("prepare_snapshot", "创建不可变代码快照；排除数据、密钥和输出。返回操作编号。", obj({"project_path": S, "excludes": ARRAY}, ["project_path"])),
-    ("create_batch", "创建实验草案，用户必须在本地面板批准。环境安装必须独立成批。", obj({"batch": Batch.model_json_schema()}, ["batch"])),
+    ("create_batch", "创建实验草案。用户在面板点击“批准并提交”后服务自动提交，无需回聊天二次确认。环境安装必须独立成批。", obj({"batch": Batch.model_json_schema()}, ["batch"])),
     ("submit_batch", "提交已批准清单。重试保持任务编号，不会重复启动。返回操作编号。", obj({"key": S}, ["key"])),
     ("get_status", "查询操作进度、批次和任务最后已知状态。离线不代表失败。", obj({"batch_id": S, "operation_id": S})),
     ("read_logs", "增量读取已同步日志，offset 为字节位置；tail=true 读取末尾。", obj({"run_id": S, "offset": {"type": "integer", "minimum": 0}, "limit": {"type": "integer", "minimum": 1, "maximum": 262144}, "tail": {"type": "boolean"}}, ["run_id"])),
