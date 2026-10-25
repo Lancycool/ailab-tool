@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>校园训练台 · Campus Runner</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body>
+<aside><a class="brand" href="#instances"><span class="mark">▥</span> 校园训练台</a><p class="caption">本地连接，远程执行</p><nav aria-label="主导航"><a href="#instances">实例管理</a><a href="#approvals">实验批准</a><a href="#tasks">任务详情</a><a href="#results">结果对比</a></nav><div class="sidebar-foot"><span id="connection-dot"></span><span id="service-state">正在连接本地服务</span><p>服务器继续训练时，你可以离开这个页面。</p></div></aside>
+<main><header><div><p id="breadcrumb">工作台 / 实例管理</p><h1 id="heading">连接你的计算资源</h1></div><button id="refresh" class="secondary">刷新状态</button></header>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+<section id="login" hidden><h2>打开本地面板</h2><p>请在终端运行 <code>campus-runner open</code>。程序会打开带访问凭据的本机页面。</p></section>
+<section id="instances" class="page"><div class="section-heading"><h2>已配置实例</h2><button id="toggle-instance">添加实例</button></div><div id="instance-list"></div>
+<form id="instance-form" hidden><h2>实例连接信息</h2><p>你可以重复填写同一编号更新实例。更新后，程序会重新检查后台运行能力。</p><div class="form-grid">
+<label>实例编号<input name="id" required pattern="[a-zA-Z0-9_-]+" placeholder="gpu-a"></label><label>显示名称<input name="name" required placeholder="实验室 A · 训练实例"></label>
+<label>主机地址<input name="host" required placeholder="192.0.2.10"></label><label>SSH 端口<input name="port" type="number" value="22" required min="1" max="65535"></label>
+<label>用户名<input name="username" required autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="new-password" placeholder="更新时留空可保留原密码"></label>
+<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label><label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda 或 /opt/conda"><small>这里不填写 radar 等训练环境的目录。</small></label>
+<label>默认训练环境<input name="default_environment" placeholder="radar 或 /home/user/.conda/envs/radar"><small>程序检查此环境是否存在。实验清单仍需明确指定环境。</small></label>
+<label>Python 命令<input name="python" value="python3" required></label><label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required></label></div><button type="submit">保存连接信息</button></form></section>
+<section id="approvals" class="page" hidden><div class="section-heading"><h2>待批准与已批准清单</h2><button id="toggle-draft" class="secondary">手动准备实验</button></div><p class="intro">Codex 可以替你准备清单。你在这里核对代码、命令、GPU 和时间，再批准整批执行。</p><div id="batch-list"></div>
+<div id="draft" hidden><h2>准备代码快照</h2><form id="snapshot-form"><label>本地项目绝对路径<input name="project_path" required placeholder="E:\Projects\my-training"></label><button>生成快照</button></form><h2>创建实验草案</h2><p>你可以复制快照编号到下方清单。每个任务必须指定服务器已有的数据路径和环境。</p><form id="batch-form"><label>实验清单 JSON<textarea name="batch" rows="18" spellcheck="false"></textarea></label><button>保存草案</button></form></div></section>
+<section id="tasks" class="page" hidden><div class="section-heading"><h2>任务队列</h2><span class="muted">状态以最后一次远程确认为准</span></div><div id="job-list"></div><section id="job-detail" hidden><div class="section-heading"><h2 id="job-title">训练日志</h2><button id="reload-log" class="secondary">读取日志</button></div><pre id="log-output" tabindex="0"></pre><h3>服务器结果文件</h3><div id="artifact-list"></div></section><details><summary>后台操作记录</summary><div id="operations"></div></details></section>
+<section id="results" class="page" hidden><div class="section-heading"><h2>实验指标</h2><button id="load-results">汇总结果</button></div><p class="intro">程序保留数据集、评价方式和代码版本。不同评价组的数值不参与统一排名。</p><div id="comparison"></div><div class="chart-controls"><label>任务<select id="series-job"></select></label><label>指标<select id="series-metric"></select></label></div><svg id="chart" viewBox="0 0 900 300" role="img" aria-label="所选指标随训练步数变化的曲线"></svg><div id="report-links"></div></section>
+<footer>Campus Runner <span>任务在服务器运行 · 结果在本地归档</span></footer></main>
+</body></html>

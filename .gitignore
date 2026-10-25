@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.campus-runner/
+build/
+dist/
+.cache/
+
+# Local credentials and editor settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.token
+.vscode/
+.idea/

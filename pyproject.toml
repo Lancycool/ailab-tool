@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "campus-runner"
+version = "0.1.0"
+description = "Codex local SSH experiment manager"
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "paramiko>=3.5,<5", "keyring>=25,<26", "httpx>=0.27,<1"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+campus-runner = "campus_runner.cli:main"
+
+[tool.setuptools.package-data]
+campus_runner = ["static/*"]
+
+[tool.setuptools.packages.find]
+include = ["campus_runner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

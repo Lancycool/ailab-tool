@@ -1,0 +1,3 @@
+"""Campus Runner. The remote module also runs standalone on Python 3.8+."""
+
+__version__ = "0.1.0"

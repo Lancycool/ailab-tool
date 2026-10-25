@@ -1,0 +1,36 @@
+{
+  "name": "双实例基线实验",
+  "concurrency": {"gpu-a": 2, "gpu-b": 2},
+  "jobs": [
+    {
+      "id": "baseline-a",
+      "instance_id": "gpu-a",
+      "snapshot_id": "REPLACE_WITH_SNAPSHOT_ID",
+      "argv": ["python", "train_demo.py", "--steps", "20"],
+      "environment": "train",
+      "gpus": [0],
+      "data_path": "/data/my-dataset",
+      "dataset": "demo-synthetic",
+      "evaluation": "demo-v1",
+      "timeout_seconds": 300,
+      "primary_metric": "loss",
+      "metric_split": "train",
+      "direction": "min"
+    },
+    {
+      "id": "baseline-b",
+      "instance_id": "gpu-b",
+      "snapshot_id": "REPLACE_WITH_SNAPSHOT_ID",
+      "argv": ["python", "train_demo.py", "--steps", "40"],
+      "environment": "train",
+      "gpus": [0],
+      "data_path": "/data/my-dataset",
+      "dataset": "demo-synthetic",
+      "evaluation": "demo-v1",
+      "timeout_seconds": 300,
+      "primary_metric": "loss",
+      "metric_split": "train",
+      "direction": "min"
+    }
+  ]
+}

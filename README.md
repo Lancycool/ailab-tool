@@ -1,0 +1,141 @@
+# 校园训练台 / Campus Runner
+
+这个程序让本地 Codex 通过 SSH 管理校园服务器上的训练。你先在学校平台申请实例，再在面板保存连接信息。Codex 可以上传代码、准备实验清单、提交已批准的任务，并读取结果。
+
+程序支持多个实例、GPU 独占分配、远程离线队列、固定代码快照、任务依赖、日志同步、指标曲线和 CSV / Markdown 汇总。程序不会替你申请实例，也不会在服务器上运行 AI 自动改代码。
+
+## 本地启动
+
+本地程序要求 Windows 与 Python 3.11 以上版本。远程实例要求 Linux、Python 3.8 以上版本、SSH/SFTP、Conda 和 `nvidia-smi`。远程辅助程序只使用 Python 标准库，不需要管理员权限。
+
+你在项目目录执行以下命令。你已有 `.venv` 时可以跳过创建环境。
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
+powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
+```
+
+启动脚本在后台运行服务，并打开面板。脚本只监听 `127.0.0.1:8765`。本地日志、数据库、代码快照和结果位于项目的 `.campus-runner` 目录。该目录已被 Git 忽略。你不要把这个目录上传到服务器或公开分享。
+
+你可以运行 `scripts/stop.ps1` 停止本地服务。脚本核对进程命令行后再停止，远程队列不会因此取消。你更新程序后，应先停止本地服务，再运行启动脚本。`requirements.lock` 保存了本次验证使用的依赖版本；你可以通过 `pip install -r requirements.lock` 安装这些版本。
+
+你也可以在终端前台运行服务：
+
+```powershell
+.\.venv\Scripts\python.exe -m campus_runner.cli --home .\.campus-runner serve
+```
+
+你在另一个终端打开面板：
+
+```powershell
+.\.venv\Scripts\python.exe -m campus_runner.cli --home .\.campus-runner open
+```
+
+CLI 默认状态目录是用户主目录下的 `.campus-runner`；本项目的启动脚本和 MCP 配置明确使用项目内目录。你必须让服务、面板入口和 MCP 使用同一个 `--home` 与 `--port`。
+
+## 接入 Codex
+
+你可以运行下面的脚本注册 MCP。脚本会更新当前用户的 Codex MCP 配置。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\configure-codex.ps1
+```
+
+你也可以把 `configs/codex.toml` 中的配置加入 Codex 配置文件。你移动项目后，需要更新绝对路径。你重新加载 Codex 会话后，可以检查 `campus-runner` 的十个工具是否可见。
+
+操作技能位于 `skills/campus-training/SKILL.md`。你可以把整个 `campus-training` 文件夹复制到自己的 Codex skills 目录，或在会话中让 Codex 读取此文件。程序不会自动改动其他 Codex 配置或安装全局技能。
+
+你可以这样提出任务：
+
+> 请使用 Campus Runner，把我的项目生成代码快照。在 gpu-a 的 0 号 GPU 和 gpu-b 的 0 号 GPU 上分别执行这两组实验。请先生成清单，让我在面板批准。训练结束后，请比较验证集 loss，并说明每个结果对应的代码版本。
+
+## 首次连接真实实例
+
+Conda 程序和训练环境是两个不同字段。例如，Conda 程序应填写 `/opt/conda/bin/conda`，程序也接受安装目录 `/opt/conda` 并自动寻找可执行文件。默认训练环境可以填写 `radar` 或 `/home/user/.conda/envs/radar`。你不要把环境目录填到 Conda 程序字段。目录被当作命令运行时，Linux 也会返回 `Permission denied`，这不一定表示目录访问权限不足。
+
+1. 你在学校平台申请实例，并确认本地电脑能访问校园内网。
+2. 你在面板添加实例，填写平台给出的主机、端口、账号、密码和北京时间到期时间。你填写绝对工作目录、Conda 可执行文件路径和 Python 命令。
+3. 你点击“检查连接与后台运行”。首次连接会显示主机指纹。你通过可信渠道核对后，在面板确认。
+4. 程序部署辅助脚本，检查 GPU、Conda、磁盘和 SFTP。程序启动八秒后台探针，关闭 SSH，再重新连接检查结果。
+5. 只有后台检查通过，程序才允许提交训练。实际训练环境和数据路径会在每次提交前再次检查。
+
+密码通过 Windows 凭据管理器保存。面板和服务令牌保存在本地状态目录，不能替代 Windows 用户隔离。拥有同一 Windows 账号的程序能够访问用户文件；本工具不是同账号恶意代码的安全沙箱。
+
+服务器指纹变化后，程序暂停连接。新实例可以使用新的实例编号。原编号仍有排队、运行或未核实任务时，程序不会允许覆盖其连接信息，避免把旧任务的停止请求发给新实例。
+
+## 训练项目接入
+
+你将 `campus_runner/metrics.py` 复制到训练项目，或把等效输出逻辑加入已有脚本。训练环境不需要安装本地管理程序。
+
+```python
+import os
+from pathlib import Path
+from metrics import write_metrics
+
+data_dir = Path(os.environ["CAMPUS_DATA_DIR"])
+output_dir = Path(os.environ["CAMPUS_OUTPUT_DIR"])
+write_metrics(step=100, metrics={"loss": 0.25, "accuracy": 0.91}, split="validation", epoch=2)
+# 训练脚本应把权重和其他结果写到 output_dir。
+```
+
+程序还提供 `CAMPUS_RUN_ID`、`CAMPUS_METRICS_PATH` 和 `CUDA_VISIBLE_DEVICES`。例如，实例中的 GPU 2 被分配给任务后，训练进程通常通过 `cuda:0` 使用它。多进程训练只应由主进程写统一指标文件。
+
+现有脚本如果硬编码了输出目录，你需要把输出位置改为 `CAMPUS_OUTPUT_DIR`，或通过命令参数传入。程序不会自动猜测原项目的结果位置。你必须使用 `python script.py` 或 `bash script.sh` 明确调用脚本；快照不保留可执行权限。
+
+统一指标文件采用 JSONL。每行都必须以换行符结束：
+
+```json
+{"schema_version":1,"step":100,"split":"validation","metrics":{"loss":0.25},"timestamp":"2026-10-24T08:00:00+00:00","epoch":2}
+```
+
+程序保留无法解析的原始文件，并在报告中标记缺失和错误行。报告根据全部已经同步的有效指标计算最后值和最佳值；曲线返回最多约 2000 个采样点。程序不会把不同数据集、评价方式或指标方向混为一个排名。
+
+你可以用 `examples/train_demo.py` 做短时 GPU 接入测试。你先把 `metrics.py` 复制到同一目录，再为该目录生成快照。演示脚本需要现有环境安装 PyTorch。`examples/batch.json` 展示双实例清单，你需要替换快照编号、实例和环境配置。
+
+## 清单、批准与文件规则
+
+MCP 的 `create_batch` 接收 `{"batch": {...}}`。任务字段由 `campus_runner/models.py` 定义。面板完整展示命令参数、环境变量、数据路径、代码摘要和输出范围。你批准后，程序记录清单摘要；修改内容需要新建清单并重新批准。
+
+`prepare_snapshot` 返回后台操作编号，你通过 `get_status(operation_id)` 获取快照结果。没有 Git 的项目同样可以使用。程序默认排除 `.git`、虚拟环境、数据目录、训练输出、常见密钥和模型权重。你可以用 `.campusignore` 补充排除模式，每行一个相对路径 glob。它不是完整的 `.gitignore` 语法，不支持否定规则。
+
+程序通过 SFTP 上传缺少的内容块，核对 SHA-256，再建立独立实验目录。每个任务使用独立代码副本。训练期间的新上传不会修改旧代码。代码文件超过 20 MB 时，程序要求你排除该文件。
+
+每个实例默认最多运行两个任务。程序同时检查全部 GPU 是否空闲，并保留 GPU 占用记录。程序不会停止外部训练。外部程序仍可能在检查后抢占 GPU；普通 SSH 权限不能提供学校调度器级别的硬隔离。
+
+环境维护任务使用 `kind="environment"`、空 `gpus` 和明确的 `argv`。程序直接执行 `argv`，因此你必须填写完整的 Conda / Python 程序路径和目标环境参数。此类任务必须独立成批批准，并等待本工具管理的同环境任务结束。程序无法阻止其他终端同时修改环境。
+
+## 离线、故障和到期
+
+本地退出不会取消已经提交的远程队列。面板只有在所有目标实例都返回接收确认后，才显示“整批已提交，可离线”。部分提交失败时，你可以重试同一批次；服务器使用固定编号拒绝重复执行。
+
+SSH 断开后，程序保留任务最后已知状态。程序默认每 30 秒同步状态、日志和指标，每 60 秒更新 GPU；失败后逐步延长重连时间，最长为五分钟。你可以通过后台操作编号检查异步请求结果。
+
+远程管理进程丢失时，程序不自动重试训练。程序保留进程身份和 GPU 记录。它只有在确认原进程组已经消失后才释放已知占用。如果进程恰好在写入身份信息前崩溃，程序会保守地保留资源；你需要通过服务器终端核实，不能直接把状态文件改成成功。第一版不提供危险的“强行清除未知任务”按钮。
+
+停止操作先向任务进程组发送 SIGTERM，30 秒后仍未退出才发送 SIGKILL。程序核对启动时间、启动会话和系统启动标识，避免误伤被复用的 PID。训练程序不应自行脱离进程组启动额外服务。
+
+程序默认提前 24 小时和 6 小时在面板提醒到期。剩余时间不足“任务最长时间 + 30 分钟”时，远程队列把新任务标记为受阻。它不强制停止已经运行的任务。你续期后，需要核对旧任务并重新批准未启动的实验。第一版没有邮件、系统推送或自动续期。
+
+## 结果归档
+
+每个任务的本地结果位于 `.campus-runner/results/<run_id>`。程序保存批准配置、原始日志、统一指标和符合范围的小文件。其他文件的自动回传上限为单文件 20 MB、单任务 200 MB。日志与指标每轮增量回传最多各 2 MB；大量日志可能暂时落后，面板的最后确认时间不代表文件已经全部下载。
+
+大型权重由你按需下载。程序把部分下载放在 `transfers` 中，恢复时核对源文件摘要，完成后再核对整文件 SHA-256。你应在权重写入结束后下载。面板只列出任务输出目录内的普通文件，不读取符号链接指向的外部内容。
+
+`get_metrics` 生成的报告位于 `.campus-runner/reports`。你可以在面板下载报告，也可以让 Codex读取结构化结果。你关闭本地电脑后，服务器只能保存远程文件，不能把结果发送到已关机的电脑。
+
+## 测试与当前验证范围
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.cache/pytest-local
+wsl -d Ubuntu -- python3 /mnt/e/Projects/ailab/tests/linux_runner_checks.py
+```
+
+本地测试覆盖批准内容变化、跨实例依赖拒绝、重复提交、回执丢失、GPU 冲突、磁盘不足、文件完整性、连接状态和任务状态分离，以及面板访问控制。Linux 测试实际创建进程，覆盖后台队列、进程锁、任务失败、取消、超时和管理进程崩溃。
+
+Linux 测试中的 Conda 与 GPU 查询使用测试程序。真实学校的 GPU、Conda、SFTP、目录保留规则和实例回收行为仍需要用真实连接完成验收。你先运行短时演示实验，再运行长时间训练。
+
+## 技术参考
+
+本项目参考了 OpenAI 的 [MCP 接入文档](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)、[MCP STDIO 协议](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)、[Paramiko SSH 接口](https://docs.paramiko.org/en/stable/api/client.html)和 [Python 进程管理文档](https://docs.python.org/3/library/subprocess.html)。程序只实现本项目需要的 MCP 初始化、工具发现、工具调用和 ping，不提供通用代理或任意终端工具。
