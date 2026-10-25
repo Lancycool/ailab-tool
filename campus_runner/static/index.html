@@ -26,7 +26,7 @@
 <label>实例编号<input name="id" required pattern="[a-zA-Z0-9_-]+" placeholder="gpu-a"></label><label>显示名称<input name="name" required placeholder="实验室 A · 训练实例"></label>
 <label>主机地址<input name="host" required placeholder="192.0.2.10"></label><label>SSH 端口<input name="port" type="number" value="22" required min="1" max="65535"></label>
 <label>用户名<input name="username" required autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="new-password" placeholder="更新时留空可保留原密码"></label>
-<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label><label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda 或 /opt/conda"><small>这里不填写 radar 等训练环境的目录。</small></label>
+<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label><label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda 或 /opt/conda"><small>conda目录，学校服务器默认/opt/conda/bin/conda 或 /opt/conda</small></label>
 <label>默认训练环境<input name="default_environment" placeholder="radar 或 /home/user/.conda/envs/radar"><small>程序检查此环境是否存在。实验清单仍需明确指定环境。</small></label>
 <label>Python 命令<input name="python" value="python3" required></label><label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required></label></div><button type="submit">保存连接信息</button></form></section>
 <section id="approvals" class="page" hidden><div class="section-heading"><h2>待批准与已批准清单</h2><button id="toggle-draft" class="secondary">手动准备实验</button></div><p class="intro">Codex 可以替你准备清单。你在这里核对代码、命令、GPU 和时间，再批准整批执行。</p><div id="batch-list"></div>
