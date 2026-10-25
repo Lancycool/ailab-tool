@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from campus_runner.api import create_app
 from campus_runner.portal import ORIGIN, Observations, Portal, endpoint, expiry, parse_connection
+from campus_runner.models import Instance
 
 
 def prepared(service):
@@ -142,3 +143,169 @@ def test_worker_serializes_browser_calls_and_cleans_session():
     assert browser.closed
     assert portal.status()['status'] == 'closed'
     assert portal.status()['candidates'] == []
+
+
+def editable(instance):
+    return {key: value for key, value in instance.items() if key in Instance.model_fields}
+
+
+@pytest.mark.parametrize('manual', ['2029-01-01T00:00:00Z', '2031-01-01T00:00:00Z'])
+def test_platform_time_overrides_manual_before_and_after_import(service, manual):
+    portal, payload = prepared(service)
+    payload['target_instance_id'] = 'a'
+    value = editable(service.store.get('instance', 'a'))
+    value['expires_at'] = manual
+    service.save_instance(value)
+    saved = portal.save(service, payload)
+    assert saved['expires_at'] == '2030-01-01T00:00:00Z'
+    assert saved['portal']['expires_at'] == saved['expires_at']
+    # Simulate an old manual form being submitted after the import finished.
+    value['name'] = 'new display name'
+    again = service.save_instance(value)
+    assert again['expires_at'] == saved['expires_at']
+    assert again['name'] == 'new display name'
+
+
+@pytest.mark.parametrize('new_time', ['2029-06-01T00:00:00Z', '2032-01-01T00:00:00Z'])
+def test_latest_platform_observation_wins_even_when_expiry_is_shorter(service, new_time):
+    portal, payload = prepared(service)
+    first = portal.save(service, payload)
+    portal.state['candidates'][0].update(expires_at=new_time, observed_at='2026-10-26T00:00:00Z')
+    saved = portal.save(service, payload)
+    assert saved['id'] == first['id']
+    assert saved['expires_at'] == new_time
+    assert saved['portal']['expires_at'] == new_time
+    portal.state['candidates'][0].update(expires_at='2035-01-01T00:00:00Z', observed_at='2026-10-25T00:00:00Z')
+    assert portal.save(service, payload)['expires_at'] == new_time
+
+
+def test_failed_time_read_does_not_restore_manual_expiry(service):
+    portal, payload = prepared(service)
+    first = portal.save(service, payload)
+    portal.state['candidates'][0].update(expires_at=None, observed_at='2026-10-26T00:00:00Z', remaining_text='', expiry_estimated=True)
+    assert portal.save(service, payload)['expires_at'] == first['expires_at']
+
+
+def test_manual_time_is_allowed_when_platform_has_never_provided_time(service):
+    portal, payload = prepared(service)
+    portal.state['candidates'][0].update(expires_at=None, remaining_text='', expiry_estimated=True)
+    saved = portal.save(service, payload)
+    assert saved['expires_at'] == '2031-01-01T00:00:00Z'
+    value = editable(saved)
+    value['expires_at'] = '2032-01-01T00:00:00Z'
+    assert service.save_instance(value)['expires_at'] == value['expires_at']
+
+
+def test_legacy_estimated_time_is_recovered_from_observation(service):
+    old = service.store.get('instance', 'a')
+    old['portal'] = {'origin':ORIGIN, 'account':'user', 'platform_id':'123', 'observed_at':'2026-10-25T00:00:00Z',
+                     'remaining_text':'4天8小时19分', 'expiry_estimated':True}
+    old['expires_at'] = '2035-01-01T00:00:00Z'
+    service.store.put('instance', 'a', old)
+    saved = service.save_instance(editable(old))
+    assert datetime.fromisoformat(saved['expires_at']) == datetime(2026, 10, 29, 8, 18, tzinfo=timezone.utc)
+
+
+def test_manual_api_cannot_replace_platform_metadata(service):
+    portal, payload = prepared(service)
+    saved = portal.save(service, payload)
+    value = editable(saved)
+    value['expires_at'] = '2040-01-01T00:00:00Z'
+    value['portal'] = {**value['portal'], 'expires_at':value['expires_at'], 'observed_at':'2039-01-01T00:00:00Z'}
+    client = TestClient(create_app(service.store.home, service, background=False), base_url='http://127.0.0.1:8765')
+    response = client.post('/api/panel/instances', json=value, headers={'Authorization':'Bearer '+service.store.token('panel')})
+    assert response.status_code == 200
+    assert response.json()['expires_at'] == saved['expires_at']
+    assert response.json()['portal'] == saved['portal']
+
+
+def manual_match(service):
+    old = service.store.get('instance', 'a')
+    old.update(host='192.0.2.4', port=24060)
+    service.store.put('instance', 'a', old)
+    return old
+
+
+def test_import_automatically_reuses_manual_id_and_credentials(service):
+    old = manual_match(service)
+    portal, payload = prepared(service)
+    payload.pop('credential_instance_id')
+    saved = portal.save(service, payload)
+    assert saved['id'] == old['id']
+    assert len(service.list_instances()) == 2
+    assert saved['portal']['platform_id'] == '123'
+    assert saved['expires_at'] == '2030-01-01T00:00:00Z'
+    assert service.credentials.get('a') == 'test-secret'
+    assert portal.save(service, payload)['id'] == 'a'
+
+
+@pytest.mark.parametrize('field,value', [('username','other'), ('port',24061), ('host','192.0.2.5')])
+def test_different_ssh_identity_is_not_merged(service, field, value):
+    old = manual_match(service)
+    old[field] = value
+    service.store.put('instance','a',old)
+    portal, payload = prepared(service)
+    payload.pop('credential_instance_id')
+    payload['password'] = 'new-test-secret'
+    assert portal.save(service, payload)['id'] != 'a'
+
+
+def test_ambiguous_manual_duplicates_require_selection(service):
+    old = manual_match(service)
+    service.store.put('instance','b',{**old,'id':'b'})
+    portal, payload = prepared(service)
+    with pytest.raises(ValueError, match='多条'):
+        portal.save(service,payload)
+    payload['target_instance_id'] = 'a'
+    assert portal.save(service,payload)['id'] == 'a'
+
+
+def test_address_reallocated_to_other_platform_instance_is_not_merged(service):
+    manual_match(service)
+    portal,payload = prepared(service)
+    portal.save(service,payload)
+    portal.state.update(selected='456')
+    portal.state['candidates'][0]['platform_id'] = '456'
+    payload['platform_id'] = '456'
+    with pytest.raises(ValueError, match='其他平台实例'):
+        portal.save(service,payload)
+
+
+def duplicate_records(service):
+    old = manual_match(service)
+    source = {'origin':ORIGIN,'account':'user','platform_id':'123','observed_at':'2026-10-25T00:00:00Z',
+              'remaining_text':'4天', 'expiry_estimated':False, 'expires_at':'2030-01-01T00:00:00Z'}
+    service.store.put('instance','duplicate',{**old,'id':'duplicate','portal':source,'expires_at':source['expires_at']})
+
+
+def test_repair_archives_duplicate_and_preserves_original_history(service):
+    duplicate_records(service)
+    job = {'id':'historic','instance_id':'a','status':'succeeded'}
+    service.store.put('job','historic',job)
+    service.store.put('batch','historic',{'instances':{'a':{}},'body':{'spec':{'jobs':[{'instance_id':'a'}]}}})
+    result = service.merge_unused_duplicate('a','duplicate')
+    assert service.store.get('instance','a')['expires_at'] == '2030-01-01T00:00:00Z'
+    assert service.store.get('instance','a')['portal']['platform_id'] == '123'
+    assert service.store.get('job','historic') == job
+    assert service.store.get('instance_merge_archive',result['archive_id'])['duplicate_before']['id'] == 'duplicate'
+    with pytest.raises(KeyError):
+        service.store.get('instance','duplicate')
+
+
+@pytest.mark.parametrize('reason', ['job','batch','fingerprint','running'])
+def test_repair_refuses_unsafe_merge_without_partial_changes(service, reason):
+    duplicate_records(service)
+    if reason=='job':
+        service.store.put('job','historic',{'instance_id':'duplicate','status':'succeeded'})
+    elif reason=='batch':
+        service.store.put('batch','draft',{'body':{'spec':{'jobs':[{'instance_id':'duplicate'}]}}})
+    elif reason=='running':
+        service.store.put('job','running',{'instance_id':'a','status':'running'})
+    else:
+        row=service.store.get('instance','duplicate'); row['host_key']=None
+        service.store.put('instance','duplicate',row)
+    before = service.store.all('instance')
+    with pytest.raises(ValueError):
+        service.merge_unused_duplicate('a','duplicate')
+    assert service.store.all('instance') == before
+    assert not service.store.all('instance_merge_archive')

@@ -11,7 +11,7 @@
 <form id="portal-form" hidden><h3 id="portal-selected">核对连接信息</h3><div class="form-grid">
 <label>SSH 外部映射<select name="mapping_index" required></select></label>
 <label>SSH 用户名<input name="username" required autocomplete="username"></label>
-<label>更新已有实例 / 复制环境配置<select name="target_instance_id"><option value="">创建新实例（重复导入会自动匹配）</option></select></label>
+<label>更新已有实例 / 复制环境配置<select name="target_instance_id"><option value="">自动匹配已有实例，无匹配时创建</option></select><small>程序按主机、SSH 端口和用户名匹配手动记录，保存后更新原实例。</small></label>
 <label>复用相同用户名的凭据<select name="credential_instance_id"><option value="">填写密码或保留当前实例密码</option></select></label>
 <label>SSH 密码<input name="password" type="password" autocomplete="new-password" placeholder="首次填写，后续可以复用"></label>
 <label>显示名称<input name="name" required></label>
@@ -28,7 +28,7 @@
 <label>用户名<input name="username" required autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="new-password" placeholder="更新时留空可保留原密码"></label>
 <label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label><label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda 或 /opt/conda"><small>conda目录，学校服务器默认/opt/conda/bin/conda 或 /opt/conda</small></label>
 <label>默认训练环境<input name="default_environment" placeholder="radar 或 /home/user/.conda/envs/radar"><small>程序检查此环境是否存在。实验清单仍需明确指定环境。</small></label>
-<label>Python 命令<input name="python" value="python3" required></label><label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required></label></div><button type="submit">保存连接信息</button></form></section>
+<label>Python 命令<input name="python" value="python3" required></label><label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required><small id="instance-expiry-note" hidden>程序优先使用学校平台时间。你可以通过“从学校平台导入 / 刷新”更新。</small></label></div><button type="submit">保存连接信息</button></form></section>
 <section id="approvals" class="page" hidden><div class="section-heading"><h2>待批准与已批准清单</h2><button id="toggle-draft" class="secondary">手动准备实验</button></div><p class="intro">Codex 可以替你准备清单。你在这里核对代码、命令、GPU 和时间，再批准整批执行。</p><div id="batch-list"></div>
 <div id="draft" hidden><h2>准备代码快照</h2><form id="snapshot-form"><label>本地项目绝对路径<input name="project_path" required placeholder="E:\Projects\my-training"></label><button>生成快照</button></form><h2>创建实验草案</h2><p>你可以复制快照编号到下方清单。每个任务必须指定服务器已有的数据路径和环境。</p><form id="batch-form"><label>实验清单 JSON<textarea name="batch" rows="18" spellcheck="false"></textarea></label><button>保存草案</button></form></div></section>
 <section id="tasks" class="page" hidden><div class="section-heading"><h2>任务队列</h2><span class="muted">状态以最后一次远程确认为准</span></div><div id="job-list"></div><section id="job-detail" hidden><div class="section-heading"><h2 id="job-title">训练日志</h2><button id="reload-log" class="secondary">读取日志</button></div><pre id="log-output" tabindex="0"></pre><h3>服务器结果文件</h3><div id="artifact-list"></div></section><details><summary>后台操作记录</summary><div id="operations"></div></details></section>

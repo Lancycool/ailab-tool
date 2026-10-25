@@ -11,6 +11,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
+from .models import connection_identity
+
 ORIGIN = "https://ailab.snnu.edu.cn"
 URL = ORIGIN + "/user/instance"
 LINK_PATH = "M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7"
@@ -271,7 +273,7 @@ class Portal:
             self.thread.join(timeout=2)
 
     def save(self, manager, payload):
-        with self.lock:
+        with self.lock, manager.registry_lock:
             state = self.status()
             if self.stopping.is_set() or state["status"] != "ready" or payload["session_id"] != state.get("session_id"):
                 raise ValueError("导入会话已结束，请重新读取实例")
@@ -297,7 +299,15 @@ class Portal:
                 if target_instance.get("portal") and any(target_instance["portal"].get(k) != v for k, v in source.items()):
                     raise ValueError("更新目标绑定了其他平台实例，请创建新记录")
                 existing = target_instance
-            source.update(observed_at=candidate["observed_at"], remaining_text=candidate["remaining_text"], expiry_estimated=candidate["expiry_estimated"])
+            elif not existing:
+                matches = [i for i in manager.list_instances() if connection_identity(i) == connection_identity({**mapping, "username": username})]
+                if len(matches) > 1:
+                    raise ValueError("存在多条相同 SSH 连接，请明确选择要更新的已有实例")
+                if matches:
+                    if matches[0].get("portal"):
+                        raise ValueError("该 SSH 地址已绑定其他平台实例，请先核对平台编号和服务器身份")
+                    existing = matches[0]
+            source.update(observed_at=candidate["observed_at"], remaining_text=candidate["remaining_text"], expiry_estimated=candidate["expiry_estimated"], expires_at=candidate["expires_at"])
             key = existing["id"] if existing else "school-" + hashlib.sha256((ORIGIN + "\n" + username + "\n" + eid).encode()).hexdigest()[:20]
             value.update(id=key, username=username, portal=source, **mapping)
             if candidate["expires_at"]:
@@ -314,4 +324,4 @@ class Portal:
                     manager.credentials.get(key)
                 except (KeyError, ValueError):
                     raise ValueError("首次导入请填写 SSH 密码，或选择已有账号凭据") from None
-            return manager.save_instance(value, password)
+            return manager.save_instance(value, password, portal_import=True)

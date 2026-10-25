@@ -1,6 +1,7 @@
 import hashlib
 import json
 import re
+import ipaddress
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 from typing import Literal
@@ -18,6 +19,15 @@ def digest(value):
 
 def utcnow():
     return datetime.now(timezone.utc).isoformat()
+
+
+def connection_identity(value):
+    host = value["host"].strip().strip("[]").rstrip(".").lower()
+    try:
+        host = str(ipaddress.ip_address(host))
+    except ValueError:
+        pass
+    return host, int(value.get("port", 22)), value["username"].strip()
 
 
 def relative(value):
@@ -38,6 +48,16 @@ class PortalSource(Strict):
     observed_at: datetime
     remaining_text: str = Field(default="", max_length=500)
     expiry_estimated: bool = False
+    expires_at: datetime | None = None
+
+    @field_validator("observed_at", "expires_at")
+    @classmethod
+    def aware(cls, value):
+        if value is None:
+            return value
+        if value.tzinfo is None:
+            raise ValueError("平台时间必须包含时区")
+        return value.astimezone(timezone.utc)
 
 
 class Instance(Strict):

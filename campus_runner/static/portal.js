@@ -24,9 +24,14 @@
     s.mappings.forEach((m, index) => {
       const option = el('option', `${m.host}:${m.port}`); option.value = index; field('mapping_index').append(option);
     });
-    options('target_instance_id', (state.instances || []).map(i => [i.id, i.name + ' · ' + i.username]), '创建新实例（重复导入会自动匹配）');
+    options('target_instance_id', (state.instances || []).map(i => [i.id, i.name + ' · ' + i.username + ' · ' + i.id]), '自动匹配已有实例，无匹配时创建');
     options('credential_instance_id', (state.instances || []).map(i => [i.id, i.name + ' · ' + i.username]), '填写密码或保留当前实例密码');
-    const existing = (state.instances || []).filter(i => i.portal?.platform_id === candidate.platform_id && i.portal.origin === 'https://ailab.snnu.edu.cn');
+    let existing = (state.instances || []).filter(i => i.portal?.platform_id === candidate.platform_id && i.portal.origin === 'https://ailab.snnu.edu.cn');
+    if (!existing.length) {
+      const host = value => value.trim().replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+      const mapping = s.mappings[0];
+      existing = (state.instances || []).filter(i => !i.portal && host(i.host) === host(mapping.host) && Number(i.port) === Number(mapping.port));
+    }
     if (existing.length === 1) { field('target_instance_id').value = existing[0].id; copyTarget(); }
     field('expires_at').value = candidate.expires_at ? new Date(new Date(candidate.expires_at).getTime() + 8 * 3600000).toISOString().slice(0,16) : '';
     field('expires_at').readOnly = !!candidate.expires_at;

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from campus_runner.api import create_app
 from campus_runner.portal import Observations, SchoolBrowser, URL
-from test_portal import prepared
+from test_portal import prepared, manual_match
 
 pytestmark = pytest.mark.skipif(os.environ.get('CAMPUS_BROWSER_TESTS') != '1', reason='Requires installed Edge and browser process access')
 
@@ -38,6 +38,7 @@ def test_real_dom_scan_and_connection_dialog():
 
 def test_panel_import_form_saves_through_real_api(service):
     from playwright.sync_api import sync_playwright
+    manual_match(service)
     portal, payload = prepared(service)
     portal.state['candidates'][0]['state'] = '运行中'
     app = create_app(service.store.home, service, background=False)
@@ -59,7 +60,7 @@ def test_panel_import_form_saves_through_real_api(service):
         page.get_by_role('button', name='从学校平台导入 / 刷新').click()
         form = page.locator('#portal-form')
         form.wait_for(state='visible')
-        form.locator('[name=target_instance_id]').select_option('a')
+        assert form.locator('[name=target_instance_id]').input_value() == 'a'
         assert form.locator('[name=username]').input_value() == 'user'
         assert form.locator('[name=password]').input_value() == ''
         form.get_by_role('button', name='确认并保存连接信息').click()
@@ -69,5 +70,17 @@ def test_panel_import_form_saves_through_real_api(service):
         assert saved['port'] == 24060
         assert saved['host_key'] is None
         assert service.credentials.get('a') == 'test-secret'
+        assert saved['expires_at'] == '2030-01-01T00:00:00Z'
+        card = page.locator('article.instance').filter(has_text='school gpu')
+        card.get_by_role('button', name='编辑连接').click()
+        expiry_input = page.locator('#instance-form input[name=expires_at]')
+        assert expiry_input.get_attribute('readonly') is not None
+        assert expiry_input.input_value() == '2030-01-01T08:00'
+        assert page.locator('#instance-expiry-note').is_visible()
+        # A manual-only instance remains editable after switching forms.
+        other = page.locator('article.instance').filter(has=page.get_by_text('b', exact=True))
+        other.get_by_role('button', name='编辑连接').click()
+        assert expiry_input.get_attribute('readonly') is None
+        assert not page.locator('#instance-expiry-note').is_visible()
         assert not errors
         browser.close()

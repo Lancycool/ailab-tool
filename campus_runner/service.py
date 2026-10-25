@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import metrics, snapshots
-from .models import Batch, Instance, digest, relative, utcnow
+from .models import Batch, Instance, connection_identity, digest, relative, utcnow
 from .store import Store
 from .transport import Credentials, HostKeyRequired, RemoteError, SSH
 
@@ -24,6 +24,7 @@ class Service:
         self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         self.locks = {}
         self.lock = threading.RLock()
+        self.registry_lock = threading.RLock()
         self.stop = threading.Event()
         self.poller = None
         from .portal import Portal
@@ -48,16 +49,33 @@ class Service:
         with self.lock:
             return self.locks.setdefault(key, threading.RLock())
 
-    def save_instance(self, value, password=None):
+    def save_instance(self, value, password=None, *, portal_import=False):
         instance = Instance.model_validate(value).model_dump(mode="json")
         key = instance["id"]
-        with self.instance_lock(key):
+        with self.registry_lock, self.instance_lock(key):
             try:
                 old = self.store.get("instance", key)
             except KeyError:
                 old = {}
-            if "portal" not in value and old.get("portal") and instance["username"] == old.get("username"):
-                instance["portal"] = old["portal"]
+            old_source = dict(old.get("portal") or {})
+            # Older releases stored the observation but not its independent expiry.
+            if old_source and "expires_at" not in old_source:
+                if old_source.get("expiry_estimated") and old_source.get("remaining_text"):
+                    from .portal import expiry
+                    old_source["expires_at"] = expiry(old_source["remaining_text"], datetime.fromisoformat(old_source["observed_at"]))["expires_at"]
+                elif not old_source.get("expiry_estimated"):
+                    old_source["expires_at"] = old.get("expires_at")
+            if not portal_import:
+                # Manual forms (including stale ones) cannot replace platform time.
+                instance["portal"] = old_source or None
+            else:
+                source = instance.get("portal") or {}
+                same = old_source and all(source.get(k) == old_source.get(k) for k in ("origin", "account", "platform_id"))
+                if same and (not source.get("expires_at") or datetime.fromisoformat(source["observed_at"]) < datetime.fromisoformat(old_source["observed_at"])):
+                    instance["portal"] = old_source
+            authoritative = (instance.get("portal") or {}).get("expires_at")
+            if authoritative:
+                instance["expires_at"] = authoritative
             if any(j.get("instance_id") == key and (j.get("status") in ("queued", "starting", "running") or (j.get("status") == "unknown" and j.get("resources_reserved", True))) for j in self.store.all("job")):
                 raise ValueError("该实例仍有运行中或状态待核实任务；请先核实任务，再更新连接")
             # Any edit creates a new revision and requires a new readiness probe.
@@ -68,6 +86,48 @@ class Service:
                 self.credentials.set(key, password)
             self.store.put("instance", key, instance)
             return instance
+
+    def merge_unused_duplicate(self, keep_id, duplicate_id):
+        """Maintenance repair: preserve the historical ID; archive an unused duplicate.
+
+        Call with the local service stopped. Referenced duplicates are never removed.
+        """
+        if keep_id == duplicate_id:
+            raise ValueError("合并需要两个不同实例编号")
+        with self.registry_lock, self.instance_lock(keep_id), self.instance_lock(duplicate_id), self.store.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            records = {(kind, key): json.loads(value) for kind, key, value in db.execute("SELECT kind,id,value FROM records")}
+            keep = records[("instance", keep_id)]
+            duplicate = records[("instance", duplicate_id)]
+            if connection_identity(keep) != connection_identity(duplicate) or keep["root"] != duplicate["root"]:
+                raise ValueError("连接或工作目录不同，不能自动合并")
+            if not keep.get("host_key") or keep.get("host_key") != duplicate.get("host_key"):
+                raise ValueError("两条记录必须已确认相同的服务器指纹")
+            source = duplicate.get("portal")
+            if keep.get("portal") or not source or not source.get("expires_at"):
+                raise ValueError("此修复仅支持把平台记录合并到未绑定的手动实例")
+            for (kind, _), record in records.items():
+                if kind == "job":
+                    if record.get("instance_id") == duplicate_id:
+                        raise ValueError("重复记录已有任务历史，不能自动移除")
+                    if record.get("instance_id") == keep_id and record.get("status") in ("queued", "starting", "running", "unknown"):
+                        raise ValueError("原实例仍有未结束任务，不能合并")
+                if kind == "batch":
+                    body = record.get("body", {})
+                    if duplicate_id in record.get("instances", {}) or duplicate_id in body.get("bindings", {}) or any(j.get("instance_id") == duplicate_id for j in body.get("spec", {}).get("jobs", [])):
+                        raise ValueError("重复记录已有实验清单，不能自动移除")
+            merged = {**keep, "portal": source, "expires_at": source["expires_at"],
+                      "revision": uuid.uuid4().hex, "ready": False, "connection": "unchecked"}
+            # Validate configuration before changing either record; credentials stay under keep_id.
+            Instance.model_validate({k: v for k, v in merged.items() if k in Instance.model_fields})
+            self.credentials.get(keep_id)
+            archive_id = uuid.uuid4().hex
+            archive = {"keep_before": keep, "duplicate_before": duplicate, "merged_id": keep_id, "time": utcnow()}
+            db.execute("INSERT INTO records VALUES(?,?,?)", ("instance_merge_archive", archive_id, json.dumps(archive)))
+            db.execute("UPDATE records SET value=? WHERE kind='instance' AND id=?", (json.dumps(merged), keep_id))
+            db.execute("DELETE FROM records WHERE kind='instance' AND id=?", (duplicate_id,))
+            db.execute("INSERT INTO events VALUES(?,?,?,?)", (utcnow(), "instances-merged", keep_id, json.dumps({"duplicate_id": duplicate_id, "archive_id": archive_id})))
+            return {"instance_id": keep_id, "archive_id": archive_id}
 
     def list_instances(self):
         rows = self.store.all("instance")
