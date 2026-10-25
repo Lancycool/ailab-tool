@@ -3,3 +3,69 @@
 .resource-controls{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin:18px 0}.resource-controls label{min-width:170px}.resource-controls button{margin-top:18px}.resource-block{padding:0 22px 18px}.resource-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.resource-tile{border:1px solid var(--line);border-radius:5px;padding:12px;background:var(--paper)}.resource-tile small{color:var(--muted)}.resource-tile p{margin:6px 0;overflow-wrap:anywhere}.resource-tile progress{width:100%;height:7px;accent-color:var(--blue)}
 
 .brand{display:flex;align-items:center;gap:8px}.brand-logo{display:block;width:34px;height:34px;object-fit:contain;flex-shrink:0}
+
+/* Fluid workspace layout: constrain content, not the viewport. */
+:root{--sidebar-width:clamp(208px,16vw,250px)}
+html{scrollbar-gutter:stable}
+body{min-width:0}
+aside{width:var(--sidebar-width);max-height:100dvh;overflow-y:auto;padding-inline:clamp(18px,1.7vw,24px)}
+main{width:calc(100% - var(--sidebar-width));max-width:none;min-width:0;margin-left:var(--sidebar-width);padding:clamp(20px,2.8vw,44px)}
+main>*,section,form,details,.batch,.table-wrap,.form-grid>*,.instance-content>*,.resource-grid>*,.chart-controls>*{min-width:0;max-width:100%}
+header{gap:16px;flex-wrap:wrap}
+header>div{min-width:0;flex:1 1 240px}
+h1{font-size:clamp(22px,2.1vw,30px);overflow-wrap:anywhere}
+h2,h3,summary,label,.intro{overflow-wrap:anywhere}
+.section-heading{flex-wrap:wrap}
+.section-heading>div{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
+button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+input,textarea,select{min-width:0;max-width:100%}
+.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.instance-head{gap:12px;flex-wrap:wrap}
+.instance-name{min-width:0;overflow-wrap:anywhere}
+.instance-content{grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))}
+.resource-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.resource-controls>span{flex:1 1 260px;min-width:0}
+.resource-controls label{min-width:0;flex:0 1 190px}
+.table-wrap{width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+td pre{max-width:100%;margin:0}
+pre,code{max-width:100%}
+.chart-controls{flex-wrap:wrap}
+.chart-controls label{flex:1 1 220px}
+#report-links,footer{flex-wrap:wrap;gap:12px}
+#chart{display:block;max-width:100%}
+@media(max-width:900px){
+ aside{position:static;width:100%;max-height:none;overflow:visible;border-right:0;border-bottom:1px solid var(--line);padding:18px 20px}
+ main{width:100%;margin-left:0;padding:24px 20px}
+ nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+ nav a{text-align:center;min-width:0;padding:9px 6px;white-space:nowrap}
+ .brand{font-size:20px}
+}
+@media(max-width:640px){
+ main{padding:20px 14px}
+ aside{padding:16px 14px}
+ header{margin-bottom:24px;align-items:flex-start}
+ header>div{flex-basis:180px}
+ header>button{padding:8px 10px}
+ .form-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+ form,#draft,.batch{padding:16px}
+ #draft form{padding:12px}
+ .instance-head{padding:16px}
+ .instance-content{padding:16px;gap:14px}
+ .resource-block{padding:0 16px 16px}
+ .actions{padding:0 16px 16px}
+ .actions>button{flex:1 1 140px}
+ .batch .actions{padding:14px 0 0}
+ th,td{padding:10px 12px}
+ .chart-controls{gap:12px}
+ .resource-controls{gap:10px}
+ .resource-controls label{flex:1 1 170px}
+ .resource-controls button{flex:0 1 auto}
+ .resource-controls>span{flex-basis:100%}
+ #report-links>button{flex:1 1 130px}
+}
+@media(max-width:360px){
+ nav{gap:2px}
+ nav a{font-size:12px;padding:8px 3px}
+ header>div{flex-basis:100%}
+ .resource-controls button{margin-top:0}
+}
