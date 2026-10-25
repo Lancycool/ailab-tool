@@ -15,9 +15,9 @@
 <label>复用相同用户名的凭据<select name="credential_instance_id"><option value="">填写密码或保留当前实例密码</option></select></label>
 <label>SSH 密码<input name="password" type="password" autocomplete="new-password" placeholder="首次填写，后续可以复用"></label>
 <label>显示名称<input name="name" required></label>
-<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label>
-<label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda"></label>
-<label>默认训练环境<input name="default_environment" placeholder="radar"></label>
+<label>远程工作目录<input name="root" required placeholder="输入用户名后自动填写"><small>程序默认填写 /home/用户名。如果服务器的个人目录不同，你可以修改。</small></label>
+<label>Conda 程序或安装目录<input name="conda" required value="/opt/conda/bin/conda"><small>程序默认使用学校服务器的 Conda 路径，你可以按实际环境修改。</small></label>
+<label>默认训练环境<input name="default_environment" placeholder="your_conda_env_name"></label>
 <label>Python 命令<input name="python" value="python3" required></label>
 <label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required></label>
 </div><p id="portal-expiry-note" class="muted"></p><button type="submit">确认并保存连接信息</button></form></section>
@@ -26,7 +26,7 @@
 <label>实例编号<input name="id" required pattern="[a-zA-Z0-9_-]+" placeholder="gpu-a"></label><label>显示名称<input name="name" required placeholder="实验室 A · 训练实例"></label>
 <label>主机地址<input name="host" required placeholder="192.0.2.10"></label><label>SSH 端口<input name="port" type="number" value="22" required min="1" max="65535"></label>
 <label>用户名<input name="username" required autocomplete="username"></label><label>密码<input name="password" type="password" autocomplete="new-password" placeholder="更新时留空可保留原密码"></label>
-<label>远程工作目录<input name="root" required placeholder="/home/user/experiments"></label><label>Conda 程序或安装目录<input name="conda" required placeholder="/opt/conda/bin/conda 或 /opt/conda"><small>conda目录，学校服务器默认/opt/conda/bin/conda 或 /opt/conda</small></label>
+<label>远程工作目录<input name="root" required placeholder="输入用户名后自动填写"><small>程序默认填写 /home/用户名。如果服务器的个人目录不同，你可以修改。</small></label><label>Conda 程序或安装目录<input name="conda" required value="/opt/conda/bin/conda"><small>程序默认使用学校服务器的 Conda 路径，你可以按实际环境修改。</small></label>
 <label>默认训练环境<input name="default_environment" placeholder="radar 或 /home/user/.conda/envs/radar"><small>程序检查此环境是否存在。实验清单仍需明确指定环境。</small></label>
 <label>Python 命令<input name="python" value="python3" required></label><label>到期时间（北京时间）<input name="expires_at" type="datetime-local" required><small id="instance-expiry-note" hidden>程序优先使用学校平台时间。你可以通过“从学校平台导入 / 刷新”更新。</small></label></div><button type="submit">保存连接信息</button></form></section>
 <section id="approvals" class="page" hidden><div class="section-heading"><h2>待批准与已批准清单</h2><button id="toggle-draft" class="secondary">手动准备实验</button></div><p class="intro">Codex 可以替你准备清单。你在这里核对代码、命令、GPU 和时间，再批准整批执行。</p><div id="batch-list"></div>

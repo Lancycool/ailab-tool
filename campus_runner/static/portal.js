@@ -41,6 +41,7 @@
     const instance = (state.instances || []).find(i => i.id === field('target_instance_id').value);
     if (!instance) return;
     for (const key of ['username','root','conda','default_environment','python']) field(key).value = instance[key] || '';
+    syncConnectionDefaults(form);
     field('credential_instance_id').value = instance.id;
   }
   function render(s) {

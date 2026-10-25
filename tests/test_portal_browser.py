@@ -57,12 +57,27 @@ def test_panel_import_form_saves_through_real_api(service):
                           headers={k:v for k,v in response.headers.items() if k.lower() not in ('content-length','content-encoding')})
         page.route('http://127.0.0.1:8765/**', handle)
         page.goto('http://127.0.0.1:8765/#token=' + service.store.token('panel'))
+        page.get_by_role('button', name='手动填写', exact=True).click()
+        manual = page.locator('#instance-form')
+        assert manual.locator('[name=conda]').input_value() == '/opt/conda/bin/conda'
+        manual.locator('[name=username]').fill('alice')
+        assert manual.locator('[name=root]').input_value() == '/home/alice'
+        manual.locator('[name=username]').fill('bob')
+        assert manual.locator('[name=root]').input_value() == '/home/bob'
+        manual.locator('[name=root]').fill('/data/custom')
+        manual.locator('[name=username]').fill('carol')
+        assert manual.locator('[name=root]').input_value() == '/data/custom'
         page.get_by_role('button', name='从学校平台导入 / 刷新').click()
         form = page.locator('#portal-form')
         form.wait_for(state='visible')
         assert form.locator('[name=target_instance_id]').input_value() == 'a'
         assert form.locator('[name=username]').input_value() == 'user'
         assert form.locator('[name=password]').input_value() == ''
+        # Copying an existing instance keeps its custom directory. Clearing it opts into the default.
+        assert form.locator('[name=root]').input_value() == '/workspace'
+        form.locator('[name=root]').fill('')
+        form.locator('[name=username]').fill('user')
+        assert form.locator('[name=root]').input_value() == '/home/user'
         form.get_by_role('button', name='确认并保存连接信息').click()
         page.get_by_text('实例 school gpu 已导入。', exact=False).wait_for()
         saved = service.store.get('instance','a')

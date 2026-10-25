@@ -76,6 +76,8 @@ Windows 需要安装 Microsoft Edge。项目依赖包含 Playwright，程序直�
 
 ### 手动填写
 
+手动填写和学校平台导入表单都会默认填写 Conda 路径 `/opt/conda/bin/conda`。你输入用户名后，程序自动填写远程工作目录 `/home/用户名`。你可以修改这两个路径；程序不会用默认值覆盖已有实例或你手动填写的自定义目录。
+
 Conda 程序和训练环境是两个不同字段。例如，Conda 程序应填写 `/opt/conda/bin/conda`，程序也接受安装目录 `/opt/conda` 并自动寻找可执行文件。默认训练环境可以填写 `radar` 或 `/home/user/.conda/envs/radar`。你不要把环境目录填到 Conda 程序字段。目录被当作命令运行时，Linux 也会返回 `Permission denied`，这不一定表示目录访问权限不足。
 
 1. 你在学校平台申请实例，并确认本地电脑能访问校园内网。
