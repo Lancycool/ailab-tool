@@ -13,6 +13,7 @@
     clearTimeout(timer);
     if (!visible() || busy) return;
     busy = true;
+    const context=noticeContext('instances');
     let pending = false;
     try {
       const result = await api('panel/resources', {refresh:collect});
@@ -23,7 +24,7 @@
         const block = $('resource-' + row.id);
         if (block) paintResources(block, row.resources);
       }
-    } catch(e) { notice('资源读取：' + e.message, true); }
+    } catch(e) { notice('资源读取：' + e.message, true, context); }
     finally { busy = false; }
     if (pending && pendingReads++ < 30) schedule(1000, false);
     else {

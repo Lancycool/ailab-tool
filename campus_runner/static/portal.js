@@ -63,24 +63,27 @@
   async function poll() {
     if (polling) return;
     polling = true;
-    try { render(await api('panel/portal/status')); } catch(e) { notice(e.message, true); } finally { polling = false; }
+    const context=noticeContext('instances');
+    try { render(await api('panel/portal/status')); } catch(e) { notice(e.message, true, context); } finally { polling = false; }
   }
   async function read(action, platform_id) {
     if (action === 'dialog' && !confirm('请确认学校窗口当前连接弹窗属于平台实例 ' + platform_id + '。程序会把该弹窗映射与此实例关联。')) return;
     render(await api('panel/portal/read', {session_id:session.session_id, action, platform_id}));
   }
   $('portal-open').onclick = async () => {
+    const context=noticeContext('instances');
     try {
       $('portal-panel').hidden = false;
       render(await api('panel/portal/start'));
       if (!timer) timer = setInterval(poll, 1500);
-    } catch(e) { notice(e.message, true); }
+    } catch(e) { notice(e.message, true, context); }
   };
-  $('portal-scan').onclick = () => read('scan').catch(e => notice(e.message, true));
-  $('portal-close').onclick = async () => { try { await api('panel/portal/close'); await poll(); } catch(e) { notice(e.message, true); } };
+  $('portal-scan').onclick = () => { const context=noticeContext('instances'); read('scan').catch(e => notice(e.message, true, context)); };
+  $('portal-close').onclick = async () => { const context=noticeContext('instances'); try { await api('panel/portal/close'); await poll(); } catch(e) { notice(e.message, true, context); } };
   field('target_instance_id').onchange = copyTarget;
   form.onsubmit = async event => {
     event.preventDefault();
+    const context=noticeContext('instances');
     const data = Object.fromEntries(new FormData(form));
     const {password, mapping_index, credential_instance_id, target_instance_id, ...instance} = data;
     instance.expires_at = new Date(instance.expires_at + ':00+08:00').toISOString();
@@ -88,8 +91,8 @@
     try {
       const saved = await api('panel/portal/save', {session_id:session.session_id, platform_id:session.selected, mapping_index:Number(mapping_index), credential_instance_id, target_instance_id, password, instance});
       field('password').value = ''; await refresh();
-      notice('实例 ' + saved.name + ' 已导入。请点击“检查连接与后台运行”，并核对服务器指纹。');
+      notice('实例 ' + saved.name + ' 已导入。请点击“检查连接与后台运行”，并核对服务器指纹。', false, context);
       await api('panel/portal/close'); await poll();
-    } catch(e) { notice(e.message, true); } finally { submit.disabled = false; }
+    } catch(e) { notice(e.message, true, context); } finally { submit.disabled = false; }
   };
 })();
