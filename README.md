@@ -303,8 +303,8 @@ $env:CAMPUS_BROWSER_TESTS = '1'
 
 ## 持续更新与参与贡献
 
-本项目正在持续更新。我会继续修复 Bug、改进使用体验，并完善功能和文档。
+本项目正在持续更新。我会继续修复 Bug、改进使用体验，并完善功能和文档。**本项目主要提供了Agent与学校集群平台的接口，至于如何更好地处理训练后的数据，你可以根据自己的数据做相关的Skills，这方面不是本项目主要研究内容:)**
 
-你在使用中遇到问题，或有新的功能建议，欢迎提交 [Issue](https://github.com/Lancycool/ailab-tool/issues)。你提交问题时，可以附上复现步骤、运行环境和相关报错，请先移除密码、令牌等敏感信息。
+在使用中遇到问题，或有新的功能建议，欢迎提交 [Issue](https://github.com/Lancycool/ailab-tool/issues)。提交问题时，可以附上复现步骤、运行环境和相关报错，请先移除密码、令牌等敏感信息。
 
-也欢迎你提交 [Pull Request](https://github.com/Lancycool/ailab-tool/pulls)，一起修复问题、补充文档或改进功能。
+也欢迎提交 [Pull Request](https://github.com/Lancycool/ailab-tool/pulls)，一起修复问题、补充文档或改进功能。
