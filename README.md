@@ -300,3 +300,11 @@ $env:CAMPUS_BROWSER_TESTS = '1'
 | 双实例实验清单示例 | [batch.json](examples/batch.json)，使用前需替换其中的占位值。 |
 
 本项目用 FastAPI 提供本地接口和面板，用 SQLite 保存记录，用 Paramiko 建立 SSH/SFTP 连接，用 Playwright 读取学校平台。远程队列使用 Python 标准库。MCP 接口提供实例查询、检查、快照、建批、提交、状态、日志、指标、下载和停止十类工具。
+
+## 持续更新与参与贡献
+
+本项目正在持续更新。我会继续修复 Bug、改进使用体验，并完善功能和文档。
+
+你在使用中遇到问题，或有新的功能建议，欢迎提交 [Issue](https://github.com/Lancycool/ailab-tool/issues)。你提交问题时，可以附上复现步骤、运行环境和相关报错，请先移除密码、令牌等敏感信息。
+
+也欢迎你提交 [Pull Request](https://github.com/Lancycool/ailab-tool/pulls)，一起修复问题、补充文档或改进功能。
