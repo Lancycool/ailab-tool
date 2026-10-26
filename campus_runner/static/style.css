@@ -6,6 +6,13 @@
 
 /* Fluid workspace layout: constrain content, not the viewport. */
 :root{--sidebar-width:clamp(208px,16vw,250px)}
+/* Keep task data readable and align rows with differently sized contents. */
+#batch-list table,#job-list table{font-size:15px}
+#batch-list td code{font-size:14px;line-height:1.65}
+#job-list .badge{font-size:14px}
+#job-list button{font-size:14px}
+#job-list th,#job-list td{vertical-align:middle}
+
 html{scrollbar-gutter:stable}
 body{min-width:0}
 aside{width:var(--sidebar-width);max-height:100dvh;overflow-y:auto;padding-inline:clamp(18px,1.7vw,24px)}
