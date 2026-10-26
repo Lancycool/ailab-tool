@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let token = sessionStorage.getItem('campus-panel-token') || '';
-if (location.hash.startsWith('#token=')) { token = location.hash.slice(7); sessionStorage.setItem('campus-panel-token', token); history.replaceState(null, '', '/#instances'); }
+if (location.hash.startsWith('#token=')) { const entry = new URLSearchParams(location.hash.slice(1)); token = entry.get('token') || ''; sessionStorage.setItem('campus-panel-token', token); history.replaceState(null, '', entry.get('page') === 'approvals' ? '/#approvals' : '/#instances'); }
 let state = {}, selectedJob = null, metricData = null;
 let activePage = null, pageRevision = 0;
 const labels = {online:'在线',offline:'连接中断',unchecked:'尚未检查',identity_required:'身份待确认',queued:'待执行',starting:'正在启动',running:'运行中',succeeded:'成功',failed:'失败',cancelled:'已取消',timeout:'已超时',blocked:'受阻',unknown:'状态待核实',interrupted:'操作已中断'};

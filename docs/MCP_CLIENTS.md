@@ -1,10 +1,10 @@
 # MCP 客户端接入
 
-Campus Runner 提供本地 MCP STDIO 服务。客户端启动一个轻量适配进程，适配进程再访问已经运行的本地管理服务。多个客户端共用同一个实例库和远程队列。
+Campus Runner 提供本地 MCP STDIO 服务。客户端启动一个轻量适配进程。适配进程在工具调用时检查本地管理服务，并按需在后台启动。多个客户端共用同一个实例库和远程队列。Agent 创建清单后，程序会自动打开实验批准页，用户只需点击“批准并提交”。
 
 ## 生成配置
 
-你先按 [README](../README.md) 安装项目并启动本地服务，然后在仓库目录执行：
+你先按 [README](../README.md) 安装项目，然后在仓库目录执行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all

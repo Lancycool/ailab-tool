@@ -8,6 +8,8 @@
 
 ## 准备与提交
 
+MCP 会在调用工具时按需启动本地后台。Agent 创建清单后，服务会自动打开浏览器的“实验批准”页。返回值 `panel_opened=false` 表示浏览器未能打开；你提示用户运行启动脚本打开面板，不要重复创建清单。程序不会把面板令牌返回给 Agent。
+
 你先调用 `list_instances`。实例未通过检查时，你调用 `inspect_instance(key, environment, data_path)`。耗时工具返回 `operation_id`，你通过 `get_status(operation_id)` 获取完成结果。你不用把一次工具响应等待到训练结束。
 
 你在本地修改代码，再调用 `prepare_snapshot(project_path, excludes)`。你核对返回的文件清单和排除项。快照固定后，你再准备实验草案。

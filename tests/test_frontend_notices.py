@@ -26,7 +26,10 @@ def test_notices_clear_when_navigating_between_modules(service):
             route.fulfill(status=response.status_code, body=response.content,
                           headers={k:v for k,v in response.headers.items() if k not in ('content-length','content-encoding')})
         page.route('http://127.0.0.1:8765/**',route_handler)
-        page.goto('http://127.0.0.1:8765/#token='+service.store.token('panel'))
+        page.goto('http://127.0.0.1:8765/#token='+service.store.token('panel')+'&page=approvals')
+        assert page.url.endswith('/#approvals')
+        assert page.locator('#heading').inner_text() == '确认这一批实验'
+        page.get_by_role('link',name='实例管理',exact=True).click()
         page.locator('article.instance').first.wait_for()
         for destination in ('实例管理','实验批准','任务详情'):
             page.get_by_role('link',name='结果对比',exact=True).click()

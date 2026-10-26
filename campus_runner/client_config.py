@@ -9,7 +9,8 @@ CLIENTS = ("generic", "codex", "claude-code", "cursor", "workbuddy", "deepseek-h
 INSTRUCTIONS = (
     "Campus Runner 用于管理已配置的 SSH 训练实例。先调用 list_instances，必要时用 inspect_instance 检查。"
     "prepare_snapshot 等耗时操作返回 operation_id，请用 get_status 查询。"
-    "create_batch 创建固定实验清单后，请用户在本地面板点击批准并提交；服务会自动提交，无需用户回聊天二次确认。"
+    "工具会按需自动启动本地后台。create_batch 成功后会自动打开实验批准页；请用户点击批准并提交，服务自动提交，无需回聊天二次确认。"
+    "若 panel_opened 为 false，请提示用户用启动脚本打开面板；不要为此重复创建清单。"
     "Agent 不得读取面板令牌、SSH 密码或代替用户批准。环境安装必须独立批准。"
     "重试提交保持原批次编号；网络断开不等于训练失败。用 read_logs 增量读日志、get_metrics 汇总指标、fetch_artifacts 按需下载。"
     "多客户端共享实例、批准和队列，请先查询已有任务，避免为同一实验重复创建批次。"
@@ -83,7 +84,7 @@ def check_connection(home, port, python=None, cwd=None):
         responses = {r["id"]: r for r in (json.loads(line) for line in result.stdout.splitlines())}
         initialized, tools, call = [responses[i]["result"] for i in (1, 2, 3)]
         if call.get("isError"):
-            raise ValueError("MCP 协议连接成功，但本地服务不可达；请先启动服务，并核对 --home 和 --port。")
+            raise ValueError("MCP 协议连接成功，但后台未能就绪；请检查 service.stderr.log，并核对 --home、--port 和端口占用。")
         instances = json.loads(call["content"][0]["text"])
         return {"status": "ok", "protocol": initialized["protocolVersion"],
                 "tools": [tool["name"] for tool in tools["tools"]], "instance_count": len(instances)}

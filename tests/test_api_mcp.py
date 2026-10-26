@@ -7,7 +7,9 @@ from campus_runner.mcp_server import handle
 from conftest import batch
 
 
-def test_api_auth_origin_and_separate_approval(service):
+def test_api_auth_origin_and_separate_approval(service, monkeypatch):
+    opened = []
+    monkeypatch.setattr("campus_runner.api.webbrowser.open", lambda url: opened.append(url) or True)
     app = create_app(service.store.home, service=service, background=False)
     client = TestClient(app, base_url="http://127.0.0.1:8765")
     service_headers = {"Authorization": "Bearer " + service.store.token()}
@@ -16,10 +18,30 @@ def test_api_auth_origin_and_separate_approval(service):
     assert client.post("/api/tools/get_status", json={}, headers={**service_headers, "Origin": "https://evil.test"}).status_code == 403
     assert client.post("/api/tools/get_status", json={}, headers={**service_headers, "Host": "evil.test"}).status_code == 403
     result = client.post("/api/tools/create_batch", json={"batch": batch(service)}, headers=service_headers).json()
+    assert result["panel_opened"] is True
+    assert opened == [f"http://127.0.0.1:8765/#token={service.store.token('panel')}&page=approvals"]
+    assert service.store.token('panel') not in json.dumps(result)
     payload = {"batch_id": result["batch_id"], "digest": result["digest"]}
     assert client.post("/api/panel/approve", json=payload, headers=service_headers).status_code == 403
     assert client.post("/api/panel/approve", json=payload, headers=panel_headers).status_code == 200
     assert "test-secret" not in client.post("/api/tools/get_status", json={}, headers=service_headers).text
+
+
+def test_browser_failure_keeps_draft_and_panel_creation_does_not_open(service, monkeypatch):
+    def fail(url):
+        raise OSError("No browser")
+    monkeypatch.setattr("campus_runner.api.webbrowser.open", fail)
+    client = TestClient(create_app(service.store.home, service=service, background=False), base_url="http://127.0.0.1:8765")
+    response = client.post("/api/tools/create_batch", json={"batch": batch(service)},
+                           headers={"Authorization": "Bearer " + service.store.token()})
+    assert response.status_code == 200
+    result = response.json()
+    assert result["panel_opened"] is False
+    assert service.store.get("batch", result["batch_id"])
+    response = client.post("/api/tools/create_batch", json={"batch": batch(service)},
+                           headers={"Authorization": "Bearer " + service.store.token('panel')})
+    assert response.status_code == 200
+    assert "panel_opened" not in response.json()
 
 
 def test_static_assets_and_no_inline_script(service):

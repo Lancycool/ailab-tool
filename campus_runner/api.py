@@ -1,4 +1,5 @@
 import hmac
+import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -108,8 +109,18 @@ def create_app(home, service=None, background=True, port=8765):
         return manager.request_resources(payload.get("refresh", True))
 
     @app.post("/api/tools/{name}")
-    async def tool(name: str, payload: dict):
-        return await run_in_threadpool(dispatch, manager, name, payload)
+    async def tool(name: str, payload: dict, request: Request):
+        result = await run_in_threadpool(dispatch, manager, name, payload)
+        # Only the service passes the panel credential to the local browser.
+        # The MCP response never contains that credential.
+        if name == "create_batch" and hmac.compare_digest(request.headers.get("authorization", ""), "Bearer " + manager.store.token()):
+            try:
+                opened = await run_in_threadpool(webbrowser.open, f"http://127.0.0.1:{port}/#token={manager.store.token('panel')}&page=approvals")
+            except Exception:
+                opened = False
+            result = {**result, "panel_opened": bool(opened),
+                      "approval_url": f"http://127.0.0.1:{port}/#approvals"}
+        return result
 
     return app
 

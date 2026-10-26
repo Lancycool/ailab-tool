@@ -7,6 +7,7 @@ import urllib.request
 from .models import Batch
 from .store import Store
 from .client_config import INSTRUCTIONS
+from .launcher import ensure_service
 
 
 def obj(properties=None, required=None):
@@ -71,6 +72,7 @@ def serve(home, port):
     store = Store(home)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     def call(name, args):
+        ensure_service(store, port, opener)
         request = urllib.request.Request(f"http://127.0.0.1:{port}/api/tools/{name}", data=json.dumps(args).encode(),
                                          headers={"Authorization": "Bearer " + store.token(), "Content-Type": "application/json"})
         try:

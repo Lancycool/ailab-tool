@@ -98,7 +98,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 
 你可以用 `-Client cursor` 等参数只生成某个客户端的配置。各客户端的操作步骤、官方资料和配置差异见 [MCP 客户端接入](docs/MCP_CLIENTS.md)。仓库中的 [配置示例](configs/generic.mcp.json) 使用占位路径；实际使用时优先让脚本生成本机配置。
 
-你先启动本地管理服务，再在客户端加载配置。你可以在项目目录运行协议自检：
+你在客户端加载配置后，MCP 会在首次调用工具时自动启动本地管理服务。你不需要每次手动开启后台。你可以在项目目录运行协议自检：
 
 ```powershell
 .\.venv\Scripts\python.exe -X utf8 -m campus_runner.cli --home .\.campus-runner --port 8765 mcp-check
@@ -157,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\configure-mcp.ps1 -Client all
 
 你接着完成下面的流程：
 
-1. 你在“实验批准”页面核对实例、GPU、环境、命令和代码快照，并点击“批准并提交”。
+1. Agent 创建实验清单后，程序会自动打开浏览器的“实验批准”页。你核对实例、GPU、环境、命令和代码快照，并点击“批准并提交”。如果浏览器未能自动打开，你可以运行启动脚本打开面板；清单已经保存，你不需要重新创建。
 2. 程序在后台自动上传并提交。你不需要返回 Agent 再说“已批准，请继续”。面板会显示提交进度；失败时，你可以重试同一清单。
 3. 你在“任务详情”查看日志和状态。只有面板显示“整批已提交，可离线”后，本地电脑才可以离线。
 4. 你在“结果对比”点击“汇总结果”，或让 Agent读取指标并生成总结。
@@ -259,7 +259,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 | 你遇到的现象 | 你可以先检查什么 |
 |---|---|
 | 面板提示没有访问凭据 | 你通过启动脚本或 `campus_runner.cli --home .\.campus-runner open` 重新打开面板。 |
-| Agent 找不到工具或连不上服务 | 你先启动本地服务，再运行 `mcp-check`。你检查客户端是否支持本地 STDIO、是否加载了正确配置，以及绝对路径、状态目录和端口是否一致。 |
+| Agent 找不到工具或连不上服务 | MCP 会自动启动后台。你运行 `mcp-check`，并检查 `service.stderr.log`、端口占用、客户端配置中的绝对路径和状态目录。 |
 | Python 环境没有 pip | 你可以执行 `.\.venv\Scripts\python.exe -m ensurepip --upgrade`，然后重新安装依赖。 |
 | 学校登录窗口打不开 | 你检查系统 Edge 是否安装，以及本地网络能否打开学校平台。你也可以先用手动配置。 |
 | 登录后没有读到实例 | 你进入学校“实例”列表再读取；程序只读取当前分页。连接图标无法识别时，你可以打开目标弹窗后使用“读取我已打开的连接弹窗”。 |
